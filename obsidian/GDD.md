@@ -32,6 +32,7 @@
 ## Scenes
 | Scene | Purpose |
 |-------|---------|
+| Loading | Mobile loading screen shown for at least 2 seconds while the next scene loads |
 | MainMenu | Start button, high score display |
 | Game | Core gameplay loop |
 | GameOver | Final score, restart, back to menu |
