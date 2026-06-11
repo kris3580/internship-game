@@ -1,9 +1,11 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 public class BallPlacer : MonoBehaviour
 {
-    [SerializeField] private Camera mainCamera;
+    private const int MousePointerId = -1;
+
     [SerializeField] private GameObject[] ballPrefabs;
     [SerializeField] private Vector3 spawnPosition = new(0f, 11.07f, -1.7f);
     [SerializeField] private Vector3 spawnEulerAngles = Vector3.zero;
@@ -16,11 +18,12 @@ public class BallPlacer : MonoBehaviour
     private Rigidbody pendingRigidbody;
     private Collider[] pendingColliders = new Collider[0];
     private Coroutine spawnRoutine;
+    private bool mouseStartedOverUi;
+    private int uiBlockedFingerId = -1;
 
     private void Awake()
     {
-        if (mainCamera == null)
-            mainCamera = Camera.main;
+        EnsureEventSystem();
     }
 
     private void Start()
@@ -126,25 +129,55 @@ public class BallPlacer : MonoBehaviour
         {
             Touch touch = Input.GetTouch(0);
             screenPosition = touch.position;
+
+            if (touch.phase == TouchPhase.Began)
+                uiBlockedFingerId = IsPointerOverUi(touch.fingerId) ? touch.fingerId : -1;
+
+            bool touchIsBlocked = uiBlockedFingerId == touch.fingerId || IsPointerOverUi(touch.fingerId);
+
+            if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
+            {
+                if (uiBlockedFingerId == touch.fingerId)
+                    uiBlockedFingerId = -1;
+            }
+
+            if (touchIsBlocked)
+                return false;
+
             shouldDrop = touch.phase == TouchPhase.Ended;
             return touch.phase != TouchPhase.Canceled;
         }
 
         screenPosition = Input.mousePosition;
-        shouldDrop = Input.GetMouseButtonUp(0);
-        return Input.GetMouseButton(0) || shouldDrop;
+
+        if (Input.GetMouseButtonDown(0))
+            mouseStartedOverUi = IsPointerOverUi(MousePointerId);
+
+        bool mouseIsBlocked = mouseStartedOverUi || IsPointerOverUi(MousePointerId);
+        shouldDrop = !mouseIsBlocked && Input.GetMouseButtonUp(0);
+        bool hasPointer = !mouseIsBlocked && (Input.GetMouseButton(0) || shouldDrop);
+
+        if (Input.GetMouseButtonUp(0))
+            mouseStartedOverUi = false;
+
+        return hasPointer;
     }
 
     private void MovePendingBall(Vector2 screenPosition)
     {
-        if (pendingRigidbody == null || mainCamera == null)
+        if (pendingRigidbody == null)
             return;
 
-        Ray ray = mainCamera.ScreenPointToRay(screenPosition);
-        Plane spawnPlane = new(Vector3.up, new Vector3(0f, spawnPosition.y, 0f));
+        pendingRigidbody.MovePosition(GetSpawnPosition(GetAxisFromScreen(screenPosition)));
+    }
 
-        if (spawnPlane.Raycast(ray, out float enter))
-            pendingRigidbody.MovePosition(GetSpawnPosition(ray.GetPoint(enter).z));
+    private float GetAxisFromScreen(Vector2 screenPosition)
+    {
+        if (Screen.width <= 0)
+            return spawnPosition.z;
+
+        float screenPercent = Mathf.Clamp01(screenPosition.x / Screen.width);
+        return Mathf.Lerp(minZ, maxZ, screenPercent);
     }
 
     private Vector3 GetSpawnPosition(float z)
@@ -156,6 +189,27 @@ public class BallPlacer : MonoBehaviour
     {
         foreach (Collider pendingCollider in pendingColliders)
             pendingCollider.enabled = enabled;
+    }
+
+    private bool IsPointerOverUi(int pointerId)
+    {
+        if (EventSystem.current == null)
+            return false;
+
+        if (pointerId == MousePointerId)
+            return EventSystem.current.IsPointerOverGameObject();
+
+        return EventSystem.current.IsPointerOverGameObject(pointerId);
+    }
+
+    private void EnsureEventSystem()
+    {
+        if (EventSystem.current != null)
+            return;
+
+        GameObject eventSystem = new("EventSystem");
+        eventSystem.AddComponent<EventSystem>();
+        eventSystem.AddComponent<StandaloneInputModule>();
     }
 
     private IEnumerator SpawnAfterDelay()
