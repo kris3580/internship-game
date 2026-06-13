@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.Serialization;
 
 public class BallPlacer : MonoBehaviour
 {
@@ -9,6 +10,7 @@ public class BallPlacer : MonoBehaviour
     [SerializeField] private GameObject[] ballPrefabs;
     [SerializeField] private Vector3 spawnPosition = new(0f, 11.07f, -1.7f);
     [SerializeField] private Vector3 spawnEulerAngles = Vector3.zero;
+    [SerializeField] private Transform spawnedBallsParent;
     [SerializeField] private Transform poolStick;
     [SerializeField] private Vector3 poolStickOffset = new(-0.15f, 0.73f, -0.03f);
     [SerializeField] private Animator poolAnimator;
@@ -16,9 +18,11 @@ public class BallPlacer : MonoBehaviour
     [SerializeField] private float dropDelay = 0.15f;
     [SerializeField] private Vector3 dropImpulse = new(0f, -1.5f, 0f);
     [SerializeField] private ForceMode dropImpulseMode = ForceMode.Impulse;
+    [SerializeField] private IslandManager islandManager;
     [SerializeField] private float minZ = -4.5f;
     [SerializeField] private float maxZ = 4.5f;
-    [SerializeField] private float nextBallDelay = 0.35f;
+    [FormerlySerializedAs("nextBallDelay")]
+    [SerializeField] private float nextHitDelay = 0.35f;
     [SerializeField] private bool spawnOnStart = true;
 
     private GameObject pendingBall;
@@ -26,12 +30,26 @@ public class BallPlacer : MonoBehaviour
     private Collider[] pendingColliders = new Collider[0];
     private Coroutine spawnRoutine;
     private Coroutine dropRoutine;
+    private float currentSpawnZ;
     private bool dropQueued;
     private bool mouseStartedOverUi;
     private int uiBlockedFingerId = -1;
 
     private void Awake()
     {
+        if (spawnedBallsParent == null)
+        {
+            GameObject spawnedBalls = GameObject.Find("SpawnedBalls");
+
+            if (spawnedBalls != null)
+                spawnedBallsParent = spawnedBalls.transform;
+        }
+
+        if (islandManager == null)
+            islandManager = GetComponent<IslandManager>();
+
+        currentSpawnZ = Mathf.Clamp(spawnPosition.z, minZ, maxZ);
+
         EnsureEventSystem();
     }
 
@@ -88,7 +106,8 @@ public class BallPlacer : MonoBehaviour
             return;
         }
 
-        pendingBall = Instantiate(prefab, GetSpawnPosition(spawnPosition.z), Quaternion.Euler(spawnEulerAngles));
+        pendingBall = Instantiate(prefab, GetSpawnPosition(currentSpawnZ), Quaternion.Euler(spawnEulerAngles));
+        ParentPendingBallForOrganization();
         pendingRigidbody = pendingBall.GetComponent<Rigidbody>();
         pendingColliders = pendingBall.GetComponentsInChildren<Collider>();
         SetPendingColliders(false);
@@ -138,6 +157,7 @@ public class BallPlacer : MonoBehaviour
             pendingRigidbody.detectCollisions = true;
             pendingRigidbody.linearVelocity = Vector3.zero;
             pendingRigidbody.angularVelocity = Vector3.zero;
+            islandManager?.RegisterBallShot();
             pendingRigidbody.AddForce(dropImpulse, dropImpulseMode);
         }
 
@@ -201,6 +221,7 @@ public class BallPlacer : MonoBehaviour
             return;
 
         Vector3 targetPosition = GetSpawnPosition(GetAxisFromScreen(screenPosition));
+        currentSpawnZ = targetPosition.z;
         pendingRigidbody.MovePosition(targetPosition);
         MovePoolStickTo(targetPosition);
     }
@@ -211,6 +232,14 @@ public class BallPlacer : MonoBehaviour
             return;
 
         MovePoolStickTo(pendingBall.transform.position);
+    }
+
+    private void ParentPendingBallForOrganization()
+    {
+        if (spawnedBallsParent == null || pendingBall == null)
+            return;
+
+        pendingBall.transform.SetParent(spawnedBallsParent, true);
     }
 
     private void MovePoolStickTo(Vector3 ballPosition)
@@ -232,7 +261,7 @@ public class BallPlacer : MonoBehaviour
     private float GetAxisFromScreen(Vector2 screenPosition)
     {
         if (Screen.width <= 0)
-            return spawnPosition.z;
+            return currentSpawnZ;
 
         float screenPercent = Mathf.Clamp01(screenPosition.x / Screen.width);
         return Mathf.Lerp(minZ, maxZ, screenPercent);
@@ -272,7 +301,7 @@ public class BallPlacer : MonoBehaviour
 
     private IEnumerator SpawnAfterDelay()
     {
-        yield return new WaitForSeconds(nextBallDelay);
+        yield return new WaitForSeconds(nextHitDelay);
         spawnRoutine = null;
         SpawnNextBall();
     }
@@ -292,7 +321,7 @@ public class BallPlacer : MonoBehaviour
             maxZ = oldMin;
         }
 
-        nextBallDelay = Mathf.Max(0f, nextBallDelay);
+        nextHitDelay = Mathf.Max(0f, nextHitDelay);
         dropDelay = Mathf.Max(0f, dropDelay);
         spawnPosition.x = 0f;
     }

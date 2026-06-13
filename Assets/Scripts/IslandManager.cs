@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 
 public class IslandManager : MonoBehaviour
@@ -8,11 +9,27 @@ public class IslandManager : MonoBehaviour
     [SerializeField] private float touchTolerance = 0.05f;
     [SerializeField] private bool checkAutomatically = true;
     [SerializeField] private float automaticCheckInterval = 0.25f;
+    [SerializeField] private GameObject comboTextContainer;
+    [SerializeField] private TMP_Text comboText;
+    [SerializeField] private Animator comboAnimator;
+    [SerializeField] private string comboAnimationStateName = "Combo";
 
     private float nextAutomaticCheckTime;
     private bool warnedMissingLayer;
+    private int comboCount;
+    private bool shotActive;
+    private bool shotClearedIsland;
 
     public event Action<IReadOnlyList<GameObject>> IslandCleared;
+
+    public void RegisterBallShot()
+    {
+        if (shotActive && !shotClearedIsland)
+            ResetCombo();
+
+        shotActive = true;
+        shotClearedIsland = false;
+    }
 
     private void FixedUpdate()
     {
@@ -147,10 +164,48 @@ public class IslandManager : MonoBehaviour
         int requiredIslandSize)
     {
         Debug.Log($"Island of {islandTag}: {island.Count}/{requiredIslandSize}");
+        RegisterIslandClear();
         IslandCleared?.Invoke(island);
 
         foreach (GameObject member in island)
             Destroy(member);
+    }
+
+    private void RegisterIslandClear()
+    {
+        if (!shotActive)
+            shotActive = true;
+
+        shotClearedIsland = true;
+        comboCount++;
+
+        if (comboCount >= 2)
+            ShowCombo(comboCount);
+    }
+
+    private void ShowCombo(int count)
+    {
+        if (comboTextContainer != null && !comboTextContainer.activeSelf)
+            comboTextContainer.SetActive(true);
+
+        if (comboText != null)
+        {
+            if (!comboText.gameObject.activeSelf)
+                comboText.gameObject.SetActive(true);
+
+            comboText.text = $"Combo!! x{count}";
+            comboText.color = UnityEngine.Random.ColorHSV(0f, 1f, 0.8f, 1f, 0.85f, 1f);
+        }
+
+        if (comboAnimator != null && !string.IsNullOrWhiteSpace(comboAnimationStateName))
+            comboAnimator.Play(comboAnimationStateName, 0, 0f);
+    }
+
+    private void ResetCombo()
+    {
+        comboCount = 0;
+        shotActive = false;
+        shotClearedIsland = false;
     }
 
     private bool TryGetBall(Collider col, int activeBallMask, out GameObject ball)
