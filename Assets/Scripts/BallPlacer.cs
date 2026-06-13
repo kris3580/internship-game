@@ -9,6 +9,13 @@ public class BallPlacer : MonoBehaviour
     [SerializeField] private GameObject[] ballPrefabs;
     [SerializeField] private Vector3 spawnPosition = new(0f, 11.07f, -1.7f);
     [SerializeField] private Vector3 spawnEulerAngles = Vector3.zero;
+    [SerializeField] private Transform poolStick;
+    [SerializeField] private Vector3 poolStickOffset = new(-0.15f, 0.73f, -0.03f);
+    [SerializeField] private Animator poolAnimator;
+    [SerializeField] private string hitAnimationStateName = "Hit";
+    [SerializeField] private float dropDelay = 0.15f;
+    [SerializeField] private Vector3 dropImpulse = new(0f, -1.5f, 0f);
+    [SerializeField] private ForceMode dropImpulseMode = ForceMode.Impulse;
     [SerializeField] private float minZ = -4.5f;
     [SerializeField] private float maxZ = 4.5f;
     [SerializeField] private float nextBallDelay = 0.35f;
@@ -18,6 +25,8 @@ public class BallPlacer : MonoBehaviour
     private Rigidbody pendingRigidbody;
     private Collider[] pendingColliders = new Collider[0];
     private Coroutine spawnRoutine;
+    private Coroutine dropRoutine;
+    private bool dropQueued;
     private bool mouseStartedOverUi;
     private int uiBlockedFingerId = -1;
 
@@ -34,7 +43,7 @@ public class BallPlacer : MonoBehaviour
 
     private void Update()
     {
-        if (pendingBall == null)
+        if (pendingBall == null || dropQueued)
             return;
 
         if (TryReadPointer(out Vector2 screenPosition, out bool shouldDrop))
@@ -49,7 +58,12 @@ public class BallPlacer : MonoBehaviour
         if (spawnRoutine != null)
             StopCoroutine(spawnRoutine);
 
+        if (dropRoutine != null)
+            StopCoroutine(dropRoutine);
+
         spawnRoutine = null;
+        dropRoutine = null;
+        dropQueued = false;
     }
 
     /// <summary>
@@ -90,6 +104,7 @@ public class BallPlacer : MonoBehaviour
         pendingRigidbody.useGravity = false;
         pendingRigidbody.isKinematic = true;
         pendingRigidbody.detectCollisions = false;
+        MovePoolStickWithPendingBall();
     }
 
     /// <summary>
@@ -97,9 +112,23 @@ public class BallPlacer : MonoBehaviour
     /// </summary>
     public void DropPendingBall()
     {
-        if (pendingBall == null)
+        if (pendingBall == null || dropQueued)
             return;
 
+        dropQueued = true;
+        PlayHitAnimation();
+
+        if (dropDelay <= 0f)
+        {
+            ReleasePendingBall();
+            return;
+        }
+
+        dropRoutine = StartCoroutine(DropAfterDelay());
+    }
+
+    private void ReleasePendingBall()
+    {
         SetPendingColliders(true);
 
         if (pendingRigidbody != null)
@@ -109,11 +138,14 @@ public class BallPlacer : MonoBehaviour
             pendingRigidbody.detectCollisions = true;
             pendingRigidbody.linearVelocity = Vector3.zero;
             pendingRigidbody.angularVelocity = Vector3.zero;
+            pendingRigidbody.AddForce(dropImpulse, dropImpulseMode);
         }
 
         pendingBall = null;
         pendingRigidbody = null;
         pendingColliders = new Collider[0];
+        dropRoutine = null;
+        dropQueued = false;
 
         if (spawnRoutine != null)
             StopCoroutine(spawnRoutine);
@@ -168,7 +200,33 @@ public class BallPlacer : MonoBehaviour
         if (pendingRigidbody == null)
             return;
 
-        pendingRigidbody.MovePosition(GetSpawnPosition(GetAxisFromScreen(screenPosition)));
+        Vector3 targetPosition = GetSpawnPosition(GetAxisFromScreen(screenPosition));
+        pendingRigidbody.MovePosition(targetPosition);
+        MovePoolStickTo(targetPosition);
+    }
+
+    private void MovePoolStickWithPendingBall()
+    {
+        if (poolStick == null || pendingBall == null)
+            return;
+
+        MovePoolStickTo(pendingBall.transform.position);
+    }
+
+    private void MovePoolStickTo(Vector3 ballPosition)
+    {
+        if (poolStick == null)
+            return;
+
+        poolStick.position = ballPosition + poolStickOffset;
+    }
+
+    private void PlayHitAnimation()
+    {
+        if (poolAnimator == null || string.IsNullOrWhiteSpace(hitAnimationStateName))
+            return;
+
+        poolAnimator.Play(hitAnimationStateName, 0, 0f);
     }
 
     private float GetAxisFromScreen(Vector2 screenPosition)
@@ -219,6 +277,12 @@ public class BallPlacer : MonoBehaviour
         SpawnNextBall();
     }
 
+    private IEnumerator DropAfterDelay()
+    {
+        yield return new WaitForSeconds(dropDelay);
+        ReleasePendingBall();
+    }
+
     private void OnValidate()
     {
         if (minZ > maxZ)
@@ -229,6 +293,7 @@ public class BallPlacer : MonoBehaviour
         }
 
         nextBallDelay = Mathf.Max(0f, nextBallDelay);
+        dropDelay = Mathf.Max(0f, dropDelay);
         spawnPosition.x = 0f;
     }
 }
