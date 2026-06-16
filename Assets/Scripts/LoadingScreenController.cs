@@ -1,7 +1,7 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using Zenject;
 
 public class LoadingScreenController : MonoBehaviour
 {
@@ -10,6 +10,7 @@ public class LoadingScreenController : MonoBehaviour
     [SerializeField] private Image progressFill;
 
     private float displayedProgress;
+    [InjectOptional] private ISceneLoader sceneLoader;
 
     private void Awake()
     {
@@ -29,7 +30,9 @@ public class LoadingScreenController : MonoBehaviour
     /// </summary>
     public IEnumerator LoadTargetScene()
     {
-        AsyncOperation loadOperation = SceneManager.LoadSceneAsync(targetSceneName);
+        AsyncOperation loadOperation = sceneLoader != null
+            ? sceneLoader.LoadSceneAsync(targetSceneName)
+            : UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(targetSceneName);
 
         if (loadOperation == null)
         {

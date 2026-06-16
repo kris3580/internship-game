@@ -16,33 +16,19 @@ public class GameSceneInstaller : MonoInstaller
 
     public override void InstallBindings()
     {
-        BindComponent(audioManager);
-        BindComponent(islandManager);
-        BindComponent(cameraShake);
-        BindComponent(ballPlacer);
-        BindComponent(loseLineGameOver);
-        BindAudioService();
+        RebindAudioService();
         BindSceneTransform(spawnedBallsParent, SpawnedBallsParentId, "SpawnedBalls");
         BindSceneTransform(cameraPoint, CameraPointId, "CameraPoint");
 
         Container.BindInterfacesAndSelfTo<BallRegistry>().AsSingle().NonLazy();
     }
 
-    private void BindAudioService()
+    private void RebindAudioService()
     {
         GameAudioManager resolvedAudioManager = ResolveComponent(audioManager);
 
         if (resolvedAudioManager != null)
-            Container.Bind<IAudioService>().FromInstance(resolvedAudioManager).AsSingle();
-    }
-
-    private void BindComponent<T>(T configuredComponent)
-        where T : Component
-    {
-        T resolvedComponent = ResolveComponent(configuredComponent);
-
-        if (resolvedComponent != null)
-            Container.Bind<T>().FromInstance(resolvedComponent).AsSingle();
+            Container.Rebind<IAudioService>().FromInstance(resolvedAudioManager).AsSingle();
     }
 
     private T ResolveComponent<T>(T configuredComponent)
