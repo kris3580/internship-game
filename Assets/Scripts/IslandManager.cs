@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -13,22 +14,51 @@ public class IslandManager : MonoBehaviour
     [SerializeField] private TMP_Text comboText;
     [SerializeField] private Animator comboAnimator;
     [SerializeField] private string comboAnimationStateName = "Combo";
+    [SerializeField] private GameAudioManager audioManager;
+    [SerializeField] private CameraShake comboCameraShake;
+    [SerializeField] private float islandWaveDelay = 0.06f;
+    [SerializeField] private float islandBallDelay = 0.025f;
 
     private float nextAutomaticCheckTime;
     private bool warnedMissingLayer;
     private int comboCount;
     private bool shotActive;
     private bool shotClearedIsland;
+    private GameObject lastShotBall;
+    private Vector3 lastImpactPosition;
+    private bool hasImpactPosition;
+    private readonly HashSet<GameObject> clearingBalls = new();
 
     public event Action<IReadOnlyList<GameObject>> IslandCleared;
 
-    public void RegisterBallShot()
+    private void Awake()
+    {
+        if (audioManager == null)
+            audioManager = GameAudioManager.Instance ?? FindFirstObjectByType<GameAudioManager>();
+
+        if (comboCameraShake == null)
+            comboCameraShake = FindFirstObjectByType<CameraShake>();
+    }
+
+    public void RegisterBallShot(GameObject shotBall)
     {
         if (shotActive && !shotClearedIsland)
             ResetCombo();
 
         shotActive = true;
         shotClearedIsland = false;
+        lastShotBall = shotBall;
+
+        if (shotBall != null)
+        {
+            lastImpactPosition = shotBall.transform.position;
+            hasImpactPosition = true;
+        }
+    }
+
+    public void RegisterBallShot()
+    {
+        RegisterBallShot(null);
     }
 
     private void FixedUpdate()
@@ -98,7 +128,7 @@ public class IslandManager : MonoBehaviour
             if (island.Count < requiredIslandSize)
                 continue;
 
-            ClearIsland(island, ball.tag, requiredIslandSize);
+            ClearIsland(island, ball.tag, requiredIslandSize, balls, activeBallMask);
         }
     }
 
@@ -161,14 +191,21 @@ public class IslandManager : MonoBehaviour
     private void ClearIsland(
         IReadOnlyList<GameObject> island,
         string islandTag,
-        int requiredIslandSize)
+        int requiredIslandSize,
+        Dictionary<GameObject, Collider> balls,
+        int activeBallMask)
     {
         Debug.Log($"Island of {islandTag}: {island.Count}/{requiredIslandSize}");
         RegisterIslandClear();
         IslandCleared?.Invoke(island);
 
         foreach (GameObject member in island)
-            Destroy(member);
+            clearingBalls.Add(member);
+
+        StartCoroutine(ClearIslandSpread(
+            new List<GameObject>(island),
+            BuildSpreadWaves(island, balls, activeBallMask)
+        ));
     }
 
     private void RegisterIslandClear()
@@ -199,6 +236,13 @@ public class IslandManager : MonoBehaviour
 
         if (comboAnimator != null && !string.IsNullOrWhiteSpace(comboAnimationStateName))
             comboAnimator.Play(comboAnimationStateName, 0, 0f);
+
+        Vector3 feedbackPosition = comboTextContainer != null
+            ? comboTextContainer.transform.position
+            : transform.position;
+
+        audioManager?.PlayCombo(feedbackPosition, count);
+        comboCameraShake?.Shake();
     }
 
     private void ResetCombo()
@@ -206,6 +250,129 @@ public class IslandManager : MonoBehaviour
         comboCount = 0;
         shotActive = false;
         shotClearedIsland = false;
+        lastShotBall = null;
+        hasImpactPosition = false;
+    }
+
+    private List<List<GameObject>> BuildSpreadWaves(
+        IReadOnlyList<GameObject> island,
+        Dictionary<GameObject, Collider> balls,
+        int activeBallMask)
+    {
+        GameObject origin = GetSpreadOrigin(island);
+        Dictionary<GameObject, int> distances = new();
+        Queue<GameObject> queue = new();
+
+        distances[origin] = 0;
+        queue.Enqueue(origin);
+
+        while (queue.Count > 0)
+        {
+            GameObject current = queue.Dequeue();
+
+            if (!balls.TryGetValue(current, out Collider currentCollider))
+                continue;
+
+            foreach (GameObject candidate in island)
+            {
+                if (distances.ContainsKey(candidate))
+                    continue;
+
+                if (!balls.TryGetValue(candidate, out Collider candidateCollider))
+                    continue;
+
+                if (!AreTouching(currentCollider, candidateCollider))
+                    continue;
+
+                distances[candidate] = distances[current] + 1;
+                queue.Enqueue(candidate);
+            }
+        }
+
+        List<List<GameObject>> waves = new();
+
+        foreach (GameObject member in island)
+        {
+            if (!distances.TryGetValue(member, out int distance))
+                distance = 0;
+
+            while (waves.Count <= distance)
+                waves.Add(new List<GameObject>());
+
+            waves[distance].Add(member);
+        }
+
+        foreach (List<GameObject> wave in waves)
+            wave.Sort((first, second) => GetSortPosition(first).z.CompareTo(GetSortPosition(second).z));
+
+        return waves;
+    }
+
+    private GameObject GetSpreadOrigin(IReadOnlyList<GameObject> island)
+    {
+        if (lastShotBall != null)
+        {
+            foreach (GameObject member in island)
+            {
+                if (member == lastShotBall)
+                    return member;
+            }
+        }
+
+        if (!hasImpactPosition)
+            return island[0];
+
+        GameObject closest = island[0];
+        float closestDistance = float.MaxValue;
+
+        foreach (GameObject member in island)
+        {
+            if (member == null)
+                continue;
+
+            float distance = (member.transform.position - lastImpactPosition).sqrMagnitude;
+
+            if (distance < closestDistance)
+            {
+                closest = member;
+                closestDistance = distance;
+            }
+        }
+
+        return closest;
+    }
+
+    private Vector3 GetSortPosition(GameObject ball)
+    {
+        return ball != null ? ball.transform.position : Vector3.zero;
+    }
+
+    private IEnumerator ClearIslandSpread(List<GameObject> island, List<List<GameObject>> waves)
+    {
+        int noteIndex = 0;
+
+        foreach (List<GameObject> wave in waves)
+        {
+            foreach (GameObject member in wave)
+            {
+                if (member == null)
+                    continue;
+
+                audioManager?.PlayBallDisappear(member.transform.position, noteIndex);
+                clearingBalls.Remove(member);
+                Destroy(member);
+                noteIndex++;
+
+                if (islandBallDelay > 0f)
+                    yield return new WaitForSeconds(islandBallDelay);
+            }
+
+            if (islandWaveDelay > 0f)
+                yield return new WaitForSeconds(islandWaveDelay);
+        }
+
+        foreach (GameObject member in island)
+            clearingBalls.Remove(member);
     }
 
     private bool TryGetBall(Collider col, int activeBallMask, out GameObject ball)
@@ -232,6 +399,9 @@ public class IslandManager : MonoBehaviour
         }
 
         if (ball == null)
+            return false;
+
+        if (clearingBalls.Contains(ball))
             return false;
 
         bool colliderIsOnBallLayer = IsInMask(col.gameObject.layer, activeBallMask);
@@ -295,5 +465,7 @@ public class IslandManager : MonoBehaviour
     {
         touchTolerance = Mathf.Max(0f, touchTolerance);
         automaticCheckInterval = Mathf.Max(0.02f, automaticCheckInterval);
+        islandWaveDelay = Mathf.Max(0f, islandWaveDelay);
+        islandBallDelay = Mathf.Max(0f, islandBallDelay);
     }
 }

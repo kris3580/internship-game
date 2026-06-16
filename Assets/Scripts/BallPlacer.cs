@@ -19,11 +19,13 @@ public class BallPlacer : MonoBehaviour
     [SerializeField] private Vector3 dropImpulse = new(0f, -1.5f, 0f);
     [SerializeField] private ForceMode dropImpulseMode = ForceMode.Impulse;
     [SerializeField] private IslandManager islandManager;
+    [SerializeField] private GameAudioManager audioManager;
     [SerializeField] private float minZ = -4.5f;
     [SerializeField] private float maxZ = 4.5f;
     [FormerlySerializedAs("nextBallDelay")]
     [SerializeField] private float nextHitDelay = 0.35f;
     [SerializeField] private bool spawnOnStart = true;
+    [SerializeField] private bool blockPlacementOverUi;
 
     private GameObject pendingBall;
     private Rigidbody pendingRigidbody;
@@ -48,6 +50,9 @@ public class BallPlacer : MonoBehaviour
         if (islandManager == null)
             islandManager = GetComponent<IslandManager>();
 
+        if (audioManager == null)
+            audioManager = GameAudioManager.Instance ?? FindFirstObjectByType<GameAudioManager>();
+
         currentSpawnZ = Mathf.Clamp(spawnPosition.z, minZ, maxZ);
 
         EnsureEventSystem();
@@ -64,7 +69,9 @@ public class BallPlacer : MonoBehaviour
         if (pendingBall == null || dropQueued)
             return;
 
-        if (TryReadPointer(out Vector2 screenPosition, out bool shouldDrop))
+        bool shouldDrop = false;
+
+        if (TryReadPointer(out Vector2 screenPosition, out shouldDrop))
             MovePendingBall(screenPosition);
 
         if (shouldDrop || Input.GetKeyDown(KeyCode.Space))
@@ -124,6 +131,7 @@ public class BallPlacer : MonoBehaviour
         pendingRigidbody.isKinematic = true;
         pendingRigidbody.detectCollisions = false;
         MovePoolStickWithPendingBall();
+        audioManager?.PlayBallPlace(pendingBall.transform.position);
     }
 
     /// <summary>
@@ -136,6 +144,7 @@ public class BallPlacer : MonoBehaviour
 
         dropQueued = true;
         PlayHitAnimation();
+        audioManager?.PlayPoolStickHit(pendingBall.transform.position);
 
         if (dropDelay <= 0f)
         {
@@ -148,17 +157,20 @@ public class BallPlacer : MonoBehaviour
 
     private void ReleasePendingBall()
     {
+        GameObject releasedBall = pendingBall;
+        Rigidbody releasedRigidbody = pendingRigidbody;
+
         SetPendingColliders(true);
 
-        if (pendingRigidbody != null)
+        if (releasedRigidbody != null)
         {
-            pendingRigidbody.isKinematic = false;
-            pendingRigidbody.useGravity = true;
-            pendingRigidbody.detectCollisions = true;
-            pendingRigidbody.linearVelocity = Vector3.zero;
-            pendingRigidbody.angularVelocity = Vector3.zero;
-            islandManager?.RegisterBallShot();
-            pendingRigidbody.AddForce(dropImpulse, dropImpulseMode);
+            releasedRigidbody.isKinematic = false;
+            releasedRigidbody.useGravity = true;
+            releasedRigidbody.detectCollisions = true;
+            releasedRigidbody.linearVelocity = Vector3.zero;
+            releasedRigidbody.angularVelocity = Vector3.zero;
+            islandManager?.RegisterBallShot(releasedBall);
+            releasedRigidbody.AddForce(dropImpulse, dropImpulseMode);
         }
 
         pendingBall = null;
@@ -183,9 +195,10 @@ public class BallPlacer : MonoBehaviour
             screenPosition = touch.position;
 
             if (touch.phase == TouchPhase.Began)
-                uiBlockedFingerId = IsPointerOverUi(touch.fingerId) ? touch.fingerId : -1;
+                uiBlockedFingerId = blockPlacementOverUi && IsPointerOverUi(touch.fingerId) ? touch.fingerId : -1;
 
-            bool touchIsBlocked = uiBlockedFingerId == touch.fingerId || IsPointerOverUi(touch.fingerId);
+            bool touchIsBlocked = blockPlacementOverUi
+                && (uiBlockedFingerId == touch.fingerId || IsPointerOverUi(touch.fingerId));
 
             if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
             {
@@ -203,9 +216,10 @@ public class BallPlacer : MonoBehaviour
         screenPosition = Input.mousePosition;
 
         if (Input.GetMouseButtonDown(0))
-            mouseStartedOverUi = IsPointerOverUi(MousePointerId);
+            mouseStartedOverUi = blockPlacementOverUi && IsPointerOverUi(MousePointerId);
 
-        bool mouseIsBlocked = mouseStartedOverUi || IsPointerOverUi(MousePointerId);
+        bool mouseIsBlocked = blockPlacementOverUi
+            && (mouseStartedOverUi || IsPointerOverUi(MousePointerId));
         shouldDrop = !mouseIsBlocked && Input.GetMouseButtonUp(0);
         bool hasPointer = !mouseIsBlocked && (Input.GetMouseButton(0) || shouldDrop);
 
@@ -221,8 +235,13 @@ public class BallPlacer : MonoBehaviour
             return;
 
         Vector3 targetPosition = GetSpawnPosition(GetAxisFromScreen(screenPosition));
+
         currentSpawnZ = targetPosition.z;
-        pendingRigidbody.MovePosition(targetPosition);
+        pendingRigidbody.position = targetPosition;
+
+        if (pendingBall != null)
+            pendingBall.transform.position = targetPosition;
+
         MovePoolStickTo(targetPosition);
     }
 
