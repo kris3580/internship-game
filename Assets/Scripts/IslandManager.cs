@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using Zenject;
 
 public class IslandManager : MonoBehaviour
 {
@@ -28,16 +29,19 @@ public class IslandManager : MonoBehaviour
     private Vector3 lastImpactPosition;
     private bool hasImpactPosition;
     private readonly HashSet<GameObject> clearingBalls = new();
+    private IAudioService audioService;
+    [InjectOptional] private IAudioService injectedAudioService;
+    [InjectOptional] private IBallRegistry ballRegistry;
+    [InjectOptional] private CameraShake injectedComboCameraShake;
 
     public event Action<IReadOnlyList<GameObject>> IslandCleared;
 
     private void Awake()
     {
-        if (audioManager == null)
-            audioManager = GameAudioManager.Instance ?? FindFirstObjectByType<GameAudioManager>();
-
         if (comboCameraShake == null)
-            comboCameraShake = FindFirstObjectByType<CameraShake>();
+            comboCameraShake = injectedComboCameraShake;
+
+        audioService = injectedAudioService ?? audioManager;
     }
 
     public void RegisterBallShot(GameObject shotBall)
@@ -84,22 +88,34 @@ public class IslandManager : MonoBehaviour
 
     private Dictionary<GameObject, Collider> CollectBalls(int activeBallMask)
     {
-        Collider[] allColliders = FindObjectsByType<Collider>(
-            FindObjectsSortMode.None
-        );
-
         Dictionary<GameObject, Collider> balls = new();
 
-        foreach (Collider col in allColliders)
+        if (ballRegistry != null)
         {
-            if (!TryGetBall(col, activeBallMask, out GameObject ball))
-                continue;
+            foreach (BallInfo info in ballRegistry.GetActiveBalls())
+                AddBallIfValid(info.Collider, activeBallMask, balls);
 
-            if (!balls.ContainsKey(ball))
-                balls.Add(ball, col);
+            return balls;
         }
 
+        Collider[] allColliders = FindObjectsByType<Collider>(FindObjectsSortMode.None);
+
+        foreach (Collider col in allColliders)
+            AddBallIfValid(col, activeBallMask, balls);
+
         return balls;
+    }
+
+    private void AddBallIfValid(
+        Collider col,
+        int activeBallMask,
+        Dictionary<GameObject, Collider> balls)
+    {
+        if (!TryGetBall(col, activeBallMask, out GameObject ball))
+            return;
+
+        if (!balls.ContainsKey(ball))
+            balls.Add(ball, col);
     }
 
     private void ResolveIslands(
@@ -169,6 +185,9 @@ public class IslandManager : MonoBehaviour
                     continue;
 
                 if (other == current)
+                    continue;
+
+                if (!balls.ContainsKey(other))
                     continue;
 
                 if (!other.CompareTag(targetTag))
@@ -241,7 +260,7 @@ public class IslandManager : MonoBehaviour
             ? comboTextContainer.transform.position
             : transform.position;
 
-        audioManager?.PlayCombo(feedbackPosition, count);
+        audioService?.PlayCombo(feedbackPosition, count);
         comboCameraShake?.Shake();
     }
 
@@ -358,8 +377,9 @@ public class IslandManager : MonoBehaviour
                 if (member == null)
                     continue;
 
-                audioManager?.PlayBallDisappear(member.transform.position, noteIndex);
+                audioService?.PlayBallDisappear(member.transform.position, noteIndex);
                 clearingBalls.Remove(member);
+                ballRegistry?.Unregister(member);
                 Destroy(member);
                 noteIndex++;
 

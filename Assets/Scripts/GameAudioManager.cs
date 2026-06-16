@@ -1,15 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Zenject;
 
-public class GameAudioManager : MonoBehaviour
+public class GameAudioManager : MonoBehaviour, IAudioService
 {
-    private struct BallInfo
-    {
-        public GameObject Root;
-        public Rigidbody Rigidbody;
-        public Collider Collider;
-    }
-
     private struct PairState
     {
         public bool Touching;
@@ -17,8 +11,6 @@ public class GameAudioManager : MonoBehaviour
     }
 
     private static readonly int[] NoteOffsets = { 0, 2, 4, 7, 12 };
-
-    public static GameAudioManager Instance { get; private set; }
 
     [Header("Clips")]
     [SerializeField] private AudioClip ballCollisionClip;
@@ -57,11 +49,11 @@ public class GameAudioManager : MonoBehaviour
     private readonly List<AudioSource> sources = new();
     private readonly List<BallInfo> balls = new();
     private readonly Dictionary<long, PairState> pairStates = new();
+    [InjectOptional] private IBallRegistry ballRegistry;
     private int nextSourceIndex;
 
     private void Awake()
     {
-        Instance = this;
         EnsureSources();
     }
 
@@ -136,6 +128,12 @@ public class GameAudioManager : MonoBehaviour
     {
         balls.Clear();
 
+        if (ballRegistry != null)
+        {
+            CollectRegisteredBalls();
+            return;
+        }
+
         Rigidbody[] rigidbodies = FindObjectsByType<Rigidbody>(FindObjectsSortMode.None);
 
         foreach (Rigidbody body in rigidbodies)
@@ -151,12 +149,21 @@ public class GameAudioManager : MonoBehaviour
             if (ballCollider == null)
                 continue;
 
-            balls.Add(new BallInfo
-            {
-                Root = root,
-                Rigidbody = body,
-                Collider = ballCollider
-            });
+            balls.Add(new BallInfo(root, body, ballCollider));
+        }
+    }
+
+    private void CollectRegisteredBalls()
+    {
+        foreach (BallInfo info in ballRegistry.GetActiveBalls())
+        {
+            if (info.Root == null || info.Rigidbody == null || info.Collider == null)
+                continue;
+
+            if (!IsBallLayerMatch(info.Root, info.Collider))
+                continue;
+
+            balls.Add(info);
         }
     }
 
@@ -289,6 +296,13 @@ public class GameAudioManager : MonoBehaviour
     private bool IsInMask(int layer, int mask)
     {
         return (mask & (1 << layer)) != 0;
+    }
+
+    private bool IsBallLayerMatch(GameObject root, Collider collider)
+    {
+        return ballLayer.value == 0
+            || IsInMask(root.layer, ballLayer.value)
+            || IsInMask(collider.gameObject.layer, ballLayer.value);
     }
 
     private void OnValidate()

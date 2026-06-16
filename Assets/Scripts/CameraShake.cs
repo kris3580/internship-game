@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using Zenject;
 
 public class CameraShake : MonoBehaviour
 {
@@ -26,6 +27,8 @@ public class CameraShake : MonoBehaviour
     private Vector2 neutralPhoneAcceleration;
     private Vector2 smoothedPhoneTilt;
     private bool hasBasePose;
+    [Inject(Optional = true, Id = GameSceneInstaller.CameraPointId)]
+    private Transform injectedCameraPoint;
 
     private void Awake()
     {
@@ -33,12 +36,7 @@ public class CameraShake : MonoBehaviour
             target = transform;
 
         if (cameraPoint == null)
-        {
-            GameObject point = GameObject.Find("CameraPoint");
-
-            if (point != null)
-                cameraPoint = point.transform;
-        }
+            cameraPoint = injectedCameraPoint;
 
         CaptureBasePose();
     }

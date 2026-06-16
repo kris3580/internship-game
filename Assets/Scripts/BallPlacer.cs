@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Serialization;
+using Zenject;
 
 public class BallPlacer : MonoBehaviour
 {
@@ -36,22 +37,22 @@ public class BallPlacer : MonoBehaviour
     private bool dropQueued;
     private bool mouseStartedOverUi;
     private int uiBlockedFingerId = -1;
+    private IAudioService audioService;
+    [InjectOptional] private IAudioService injectedAudioService;
+    [InjectOptional] private IBallRegistry ballRegistry;
+    [InjectOptional] private IslandManager injectedIslandManager;
+    [Inject(Optional = true, Id = GameSceneInstaller.SpawnedBallsParentId)]
+    private Transform injectedSpawnedBallsParent;
 
     private void Awake()
     {
-        if (spawnedBallsParent == null)
-        {
-            GameObject spawnedBalls = GameObject.Find("SpawnedBalls");
-
-            if (spawnedBalls != null)
-                spawnedBallsParent = spawnedBalls.transform;
-        }
-
         if (islandManager == null)
-            islandManager = GetComponent<IslandManager>();
+            islandManager = injectedIslandManager;
 
-        if (audioManager == null)
-            audioManager = GameAudioManager.Instance ?? FindFirstObjectByType<GameAudioManager>();
+        if (spawnedBallsParent == null)
+            spawnedBallsParent = injectedSpawnedBallsParent;
+
+        audioService = injectedAudioService ?? audioManager;
 
         currentSpawnZ = Mathf.Clamp(spawnPosition.z, minZ, maxZ);
 
@@ -131,7 +132,7 @@ public class BallPlacer : MonoBehaviour
         pendingRigidbody.isKinematic = true;
         pendingRigidbody.detectCollisions = false;
         MovePoolStickWithPendingBall();
-        audioManager?.PlayBallPlace(pendingBall.transform.position);
+        audioService?.PlayBallPlace(pendingBall.transform.position);
     }
 
     /// <summary>
@@ -144,7 +145,7 @@ public class BallPlacer : MonoBehaviour
 
         dropQueued = true;
         PlayHitAnimation();
-        audioManager?.PlayPoolStickHit(pendingBall.transform.position);
+        audioService?.PlayPoolStickHit(pendingBall.transform.position);
 
         if (dropDelay <= 0f)
         {
@@ -169,6 +170,7 @@ public class BallPlacer : MonoBehaviour
             releasedRigidbody.detectCollisions = true;
             releasedRigidbody.linearVelocity = Vector3.zero;
             releasedRigidbody.angularVelocity = Vector3.zero;
+            ballRegistry?.Register(releasedBall);
             islandManager?.RegisterBallShot(releasedBall);
             releasedRigidbody.AddForce(dropImpulse, dropImpulseMode);
         }

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Zenject;
 
 public class LoseLineGameOver : MonoBehaviour
 {
@@ -13,6 +14,7 @@ public class LoseLineGameOver : MonoBehaviour
     [SerializeField] private Color gizmoColor = new(1f, 0.1f, 0.1f, 0.35f);
 
     private readonly HashSet<GameObject> countedBalls = new();
+    [InjectOptional] private IBallRegistry ballRegistry;
     private float nextCheckTime;
     private bool gameOverLogged;
 
@@ -37,6 +39,10 @@ public class LoseLineGameOver : MonoBehaviour
     private int CountBallsAtLine()
     {
         countedBalls.Clear();
+
+        if (ballRegistry != null)
+            return CountRegisteredBallsAtLine();
+
         Collider[] colliders = FindObjectsByType<Collider>(FindObjectsSortMode.None);
 
         foreach (Collider col in colliders)
@@ -44,24 +50,45 @@ public class LoseLineGameOver : MonoBehaviour
             if (!TryGetBall(col, out GameObject ball))
                 continue;
 
-            if (Mathf.Abs(ball.transform.position.x - transform.position.x) > halfDepthX)
-                continue;
-
-            if (Mathf.Abs(ball.transform.position.z - transform.position.z) > halfWidthZ)
-                continue;
-
             Rigidbody body = ball.GetComponent<Rigidbody>();
 
-            if (body != null && body.linearVelocity.magnitude > maximumCountedSpeed)
-                continue;
-
-            if (col.bounds.max.y < Height)
-                continue;
-
-            countedBalls.Add(ball);
+            CountBallIfAtLine(ball, col, body);
         }
 
         return countedBalls.Count;
+    }
+
+    private int CountRegisteredBallsAtLine()
+    {
+        foreach (BallInfo info in ballRegistry.GetActiveBalls())
+        {
+            if (info.Root == null || info.Collider == null)
+                continue;
+
+            if (!IsBallLayerMatch(info.Root, info.Collider))
+                continue;
+
+            CountBallIfAtLine(info.Root, info.Collider, info.Rigidbody);
+        }
+
+        return countedBalls.Count;
+    }
+
+    private void CountBallIfAtLine(GameObject ball, Collider col, Rigidbody body)
+    {
+        if (Mathf.Abs(ball.transform.position.x - transform.position.x) > halfDepthX)
+            return;
+
+        if (Mathf.Abs(ball.transform.position.z - transform.position.z) > halfWidthZ)
+            return;
+
+        if (body != null && body.linearVelocity.magnitude > maximumCountedSpeed)
+            return;
+
+        if (col.bounds.max.y < Height)
+            return;
+
+        countedBalls.Add(ball);
     }
 
     private bool TryGetBall(Collider col, out GameObject ball)
@@ -93,6 +120,13 @@ public class LoseLineGameOver : MonoBehaviour
     private bool IsInMask(int layer, int mask)
     {
         return (mask & (1 << layer)) != 0;
+    }
+
+    private bool IsBallLayerMatch(GameObject ball, Collider col)
+    {
+        return ballLayer.value == 0
+            || IsInMask(ball.layer, ballLayer.value)
+            || IsInMask(col.gameObject.layer, ballLayer.value);
     }
 
     private void OnDrawGizmos()
