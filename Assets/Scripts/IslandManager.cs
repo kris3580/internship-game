@@ -86,6 +86,86 @@ public class IslandManager : MonoBehaviour
         ResolveIslands(balls, activeBallMask);
     }
 
+    public void DestroyBall(GameObject ball)
+    {
+        if (ball == null)
+            return;
+
+        audioService?.PlayBallDisappear(ball.transform.position, 0);
+        clearingBalls.Remove(ball);
+        ballRegistry?.Unregister(ball);
+        Destroy(ball);
+    }
+
+    public void ClearIslandContaining(GameObject ball)
+    {
+        if (ball == null)
+            return;
+
+        int activeBallMask = GetActiveBallMask();
+        Dictionary<GameObject, Collider> balls = CollectBalls(activeBallMask);
+
+        if (!balls.ContainsKey(ball))
+            return;
+
+        List<GameObject> island = FindIsland(ball, balls, activeBallMask, new HashSet<GameObject>());
+        ClearIsland(island, ball.tag, island.Count, balls, activeBallMask);
+    }
+
+    public void ClearAllBallsWithTag(string ballTag)
+    {
+        if (string.IsNullOrWhiteSpace(ballTag))
+            return;
+
+        int activeBallMask = GetActiveBallMask();
+        Dictionary<GameObject, Collider> balls = CollectBalls(activeBallMask);
+        List<GameObject> matchingBalls = new();
+
+        foreach (GameObject ball in balls.Keys)
+        {
+            if (ball != null && ball.CompareTag(ballTag))
+                matchingBalls.Add(ball);
+        }
+
+        if (matchingBalls.Count == 0)
+            return;
+
+        ClearIsland(matchingBalls, ballTag, matchingBalls.Count, balls, activeBallMask);
+    }
+
+    public void SpawnCopiesAround(GameObject sourceBall, int count, float radius)
+    {
+        if (sourceBall == null || count <= 0)
+            return;
+
+        BallPlacer ballPlacer = FindFirstObjectByType<BallPlacer>();
+        GameObject prefab = null;
+
+        if (ballPlacer == null || !ballPlacer.TryGetPrefabForTag(sourceBall.tag, out prefab))
+            prefab = sourceBall;
+
+        Transform parent = sourceBall.transform.parent;
+
+        for (int i = 0; i < count; i++)
+        {
+            float angle = i * Mathf.PI * 2f / count;
+            Vector3 offset = new(0f, Mathf.Sin(angle) * radius, Mathf.Cos(angle) * radius);
+            GameObject spawned = Instantiate(prefab, sourceBall.transform.position + offset, sourceBall.transform.rotation, parent);
+            Rigidbody body = spawned.GetComponent<Rigidbody>();
+
+            if (body != null)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+                body.useGravity = true;
+                body.isKinematic = false;
+                body.detectCollisions = true;
+            }
+
+            ballRegistry?.Register(spawned);
+        }
+    }
+
     private Dictionary<GameObject, Collider> CollectBalls(int activeBallMask)
     {
         Dictionary<GameObject, Collider> balls = new();

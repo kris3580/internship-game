@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 6868651329602357392}
   - component: {fileID: 5787006407764400996}
   - component: {fileID: 8242986744538487825}
+  - component: {fileID: 7333600986214845640}
   m_Layer: 6
   m_Name: FireBall
   m_TagString: fire
@@ -141,6 +142,22 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 2
   m_CollisionDetection: 0
+--- !u!114 &7333600986214845640
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 347527165628013384}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0f92e54f5dfc4e548875cbb207af80b5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PowerUpBall
+  stoppedSpeed: 0.08
+  stoppedDuration: 0.35
+  earthSpawnCount: 5
+  earthSpawnRadius: 0.75
 --- !u!1 &8072217412695542888
 GameObject:
   m_ObjectHideFlags: 0

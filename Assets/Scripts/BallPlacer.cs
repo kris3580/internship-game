@@ -1,7 +1,9 @@
 using System.Collections;
+using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Serialization;
+using TMPro;
 using Zenject;
 
 public class BallPlacer : MonoBehaviour
@@ -27,8 +29,15 @@ public class BallPlacer : MonoBehaviour
     [SerializeField] private float nextHitDelay = 0.35f;
     [SerializeField] private bool spawnOnStart = true;
     [SerializeField] private bool blockPlacementOverUi;
+    [SerializeField] private TMP_Text nextBallText;
+    [SerializeField] private ParticleSystem hitParticle;
 
     private GameObject pendingBall;
+    private GameObject queuedPowerUpPrefab;
+    private GameObject nextNormalPrefab;
+    private bool pendingBallIsPowerUp;
+    private Action queuedPowerUpReleased;
+    private Action pendingPowerUpReleased;
     private Rigidbody pendingRigidbody;
     private Collider[] pendingColliders = new Collider[0];
     private Coroutine spawnRoutine;
@@ -36,6 +45,7 @@ public class BallPlacer : MonoBehaviour
     private float currentSpawnZ;
     private bool dropQueued;
     private bool mouseStartedOverUi;
+    private bool suppressDropUntilPointerReleased;
     private int uiBlockedFingerId = -1;
     private IAudioService audioService;
     [InjectOptional] private IAudioService injectedAudioService;
@@ -106,7 +116,7 @@ public class BallPlacer : MonoBehaviour
             return;
         }
 
-        GameObject prefab = ballPrefabs[UnityEngine.Random.Range(0, ballPrefabs.Length)];
+        GameObject prefab = GetNextPrefab();
 
         if (prefab == null)
         {
@@ -133,6 +143,7 @@ public class BallPlacer : MonoBehaviour
         pendingRigidbody.detectCollisions = false;
         MovePoolStickWithPendingBall();
         audioService?.PlayBallPlace(pendingBall.transform.position);
+        RefreshNextBallText();
     }
 
     /// <summary>
@@ -160,7 +171,10 @@ public class BallPlacer : MonoBehaviour
     {
         GameObject releasedBall = pendingBall;
         Rigidbody releasedRigidbody = pendingRigidbody;
+        bool releasedBallIsPowerUp = pendingBallIsPowerUp;
+        Action releasedPowerUpCallback = pendingPowerUpReleased;
 
+        PlayHitParticle();
         SetPendingColliders(true);
 
         if (releasedRigidbody != null)
@@ -175,9 +189,14 @@ public class BallPlacer : MonoBehaviour
             releasedRigidbody.AddForce(dropImpulse, dropImpulseMode);
         }
 
+        if (releasedBallIsPowerUp)
+            releasedPowerUpCallback?.Invoke();
+
         pendingBall = null;
         pendingRigidbody = null;
         pendingColliders = new Collider[0];
+        pendingBallIsPowerUp = false;
+        pendingPowerUpReleased = null;
         dropRoutine = null;
         dropQueued = false;
 
@@ -190,6 +209,16 @@ public class BallPlacer : MonoBehaviour
     private bool TryReadPointer(out Vector2 screenPosition, out bool shouldDrop)
     {
         shouldDrop = false;
+
+        if (suppressDropUntilPointerReleased)
+        {
+            screenPosition = Input.mousePosition;
+
+            if (Input.touchCount == 0 && !Input.GetMouseButton(0))
+                suppressDropUntilPointerReleased = false;
+
+            return false;
+        }
 
         if (Input.touchCount > 0)
         {
@@ -277,6 +306,109 @@ public class BallPlacer : MonoBehaviour
             return;
 
         poolAnimator.Play(hitAnimationStateName, 0, 0f);
+    }
+
+    private void PlayHitParticle()
+    {
+        if (hitParticle == null)
+            return;
+
+        if (!hitParticle.gameObject.activeSelf)
+            hitParticle.gameObject.SetActive(true);
+
+        hitParticle.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        hitParticle.Play(true);
+    }
+
+    public bool QueuePowerUp(GameObject powerUpPrefab, Action onReleased = null)
+    {
+        if (powerUpPrefab == null || dropQueued || queuedPowerUpPrefab != null)
+            return false;
+
+        if (pendingBall != null)
+        {
+            ballRegistry?.Unregister(pendingBall);
+            Destroy(pendingBall);
+            pendingBall = null;
+            pendingRigidbody = null;
+            pendingColliders = new Collider[0];
+        }
+
+        queuedPowerUpPrefab = powerUpPrefab;
+        queuedPowerUpReleased = onReleased;
+        suppressDropUntilPointerReleased = true;
+        SpawnNextBall();
+        return true;
+    }
+
+    public bool TryGetPrefabForTag(string ballTag, out GameObject prefab)
+    {
+        prefab = null;
+
+        if (ballPrefabs == null)
+            return false;
+
+        foreach (GameObject candidate in ballPrefabs)
+        {
+            if (candidate != null && candidate.CompareTag(ballTag))
+            {
+                prefab = candidate;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private GameObject GetNextPrefab()
+    {
+        if (queuedPowerUpPrefab != null)
+        {
+            GameObject powerUp = queuedPowerUpPrefab;
+            queuedPowerUpPrefab = null;
+            pendingBallIsPowerUp = true;
+            pendingPowerUpReleased = queuedPowerUpReleased;
+            queuedPowerUpReleased = null;
+            return powerUp;
+        }
+
+        pendingBallIsPowerUp = false;
+        pendingPowerUpReleased = null;
+
+        if (nextNormalPrefab == null)
+            nextNormalPrefab = PickNormalPrefab();
+
+        GameObject prefab = nextNormalPrefab;
+        nextNormalPrefab = PickNormalPrefab();
+        return prefab;
+    }
+
+    private GameObject PickNormalPrefab()
+    {
+        if (ballPrefabs == null || ballPrefabs.Length == 0)
+            return null;
+
+        return ballPrefabs[UnityEngine.Random.Range(0, ballPrefabs.Length)];
+    }
+
+    private void RefreshNextBallText()
+    {
+        if (nextBallText == null)
+            nextBallText = FindTextByName("NextBallText");
+
+        if (nextBallText == null)
+            return;
+
+        if (nextNormalPrefab == null)
+            nextNormalPrefab = PickNormalPrefab();
+
+        nextBallText.text = nextNormalPrefab != null ? nextNormalPrefab.tag : string.Empty;
+    }
+
+    private TMP_Text FindTextByName(string objectName)
+    {
+        GameObject found = GameObject.Find(objectName);
+        return found != null ? found.GetComponent<TMP_Text>() : null;
     }
 
     private float GetAxisFromScreen(Vector2 screenPosition)

@@ -4867,6 +4867,7 @@ GameObject:
   - component: {fileID: 7643609029099389311}
   - component: {fileID: 4958348874133048238}
   - component: {fileID: 2675754988320106206}
+  - component: {fileID: 7000597607633014680}
   m_Layer: 6
   m_Name: EarthBall
   m_TagString: earth
@@ -4995,3 +4996,19 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 2
   m_CollisionDetection: 0
+--- !u!114 &7000597607633014680
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6307870824415479326}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0f92e54f5dfc4e548875cbb207af80b5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PowerUpBall
+  stoppedSpeed: 0.08
+  stoppedDuration: 0.35
+  earthSpawnCount: 5
+  earthSpawnRadius: 0.75
