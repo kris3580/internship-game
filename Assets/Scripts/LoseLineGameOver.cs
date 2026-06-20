@@ -15,6 +15,7 @@ public class LoseLineGameOver : MonoBehaviour
 
     private readonly HashSet<GameObject> countedBalls = new();
     [InjectOptional] private IBallRegistry ballRegistry;
+    [InjectOptional] private IGameStateMachine gameStateMachine;
     private float nextCheckTime;
     private bool gameOverLogged;
 
@@ -30,6 +31,7 @@ public class LoseLineGameOver : MonoBehaviour
         if (CountBallsAtLine() >= requiredBallCount)
         {
             gameOverLogged = true;
+            gameStateMachine?.SetGameOver();
             Debug.Log("Game over", this);
         }
 

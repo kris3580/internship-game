@@ -32,6 +32,7 @@ public class IslandManager : MonoBehaviour
     private IAudioService audioService;
     [InjectOptional] private IAudioService injectedAudioService;
     [InjectOptional] private IBallRegistry ballRegistry;
+    [InjectOptional] private IBallFactory ballFactory;
     [InjectOptional] private CameraShake injectedComboCameraShake;
 
     public event Action<IReadOnlyList<GameObject>> IslandCleared;
@@ -94,7 +95,7 @@ public class IslandManager : MonoBehaviour
         audioService?.PlayBallDisappear(ball.transform.position, 0);
         clearingBalls.Remove(ball);
         ballRegistry?.Unregister(ball);
-        Destroy(ball);
+        DespawnBall(ball);
     }
 
     public void ClearIslandContaining(GameObject ball)
@@ -150,7 +151,9 @@ public class IslandManager : MonoBehaviour
         {
             float angle = i * Mathf.PI * 2f / count;
             Vector3 offset = new(0f, Mathf.Sin(angle) * radius, Mathf.Cos(angle) * radius);
-            GameObject spawned = Instantiate(prefab, sourceBall.transform.position + offset, sourceBall.transform.rotation, parent);
+            GameObject spawned = ballFactory != null
+                ? ballFactory.Spawn(sourceBall.tag, sourceBall.transform.position + offset, sourceBall.transform.rotation, parent)
+                : Instantiate(prefab, sourceBall.transform.position + offset, sourceBall.transform.rotation, parent);
             Rigidbody body = spawned.GetComponent<Rigidbody>();
 
             if (body != null)
@@ -460,7 +463,7 @@ public class IslandManager : MonoBehaviour
                 audioService?.PlayBallDisappear(member.transform.position, noteIndex);
                 clearingBalls.Remove(member);
                 ballRegistry?.Unregister(member);
-                Destroy(member);
+                DespawnBall(member);
                 noteIndex++;
 
                 if (islandBallDelay > 0f)
@@ -567,5 +570,13 @@ public class IslandManager : MonoBehaviour
         automaticCheckInterval = Mathf.Max(0.02f, automaticCheckInterval);
         islandWaveDelay = Mathf.Max(0f, islandWaveDelay);
         islandBallDelay = Mathf.Max(0f, islandBallDelay);
+    }
+
+    private void DespawnBall(GameObject ball)
+    {
+        if (ballFactory != null)
+            ballFactory.Despawn(ball);
+        else
+            Destroy(ball);
     }
 }

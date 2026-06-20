@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 [RequireComponent(typeof(AudioSource))]
 public class MusicPlaylistPlayer : MonoBehaviour
@@ -10,9 +11,12 @@ public class MusicPlaylistPlayer : MonoBehaviour
     [SerializeField] private bool shuffle;
     [SerializeField] private float volume = 0.45f;
     [SerializeField] private float endTolerance = 0.15f;
+    [SerializeField] private bool preloadNextClip = true;
 
     private AudioSource source;
     private int currentIndex = -1;
+    private int preloadedIndex = -1;
+    private Coroutine preloadRoutine;
     private bool currentClipStarted;
     private bool applicationSuspended;
     private bool resumeAfterSuspension;
@@ -76,14 +80,89 @@ public class MusicPlaylistPlayer : MonoBehaviour
         if (playlist == null || playlist.Length == 0)
             return;
 
-        currentIndex = shuffle
-            ? Random.Range(0, playlist.Length)
-            : (currentIndex + 1) % playlist.Length;
+        currentIndex = GetNextIndex();
 
         source.clip = playlist[currentIndex];
         source.volume = volume;
         source.Play();
         currentClipStarted = source.clip != null;
+
+        BeginPreloadNextClip();
+    }
+
+    private int GetNextIndex()
+    {
+        if (preloadNextClip && IsValidIndex(preloadedIndex))
+        {
+            int index = preloadedIndex;
+            preloadedIndex = -1;
+            return index;
+        }
+
+        return PickNextIndex();
+    }
+
+    private int PickNextIndex()
+    {
+        if (playlist == null || playlist.Length == 0)
+            return -1;
+
+        if (!shuffle || playlist.Length == 1)
+            return (currentIndex + 1) % playlist.Length;
+
+        int nextIndex = currentIndex;
+
+        while (nextIndex == currentIndex)
+            nextIndex = Random.Range(0, playlist.Length);
+
+        return nextIndex;
+    }
+
+    private void BeginPreloadNextClip()
+    {
+        if (!preloadNextClip || playlist == null || playlist.Length <= 1)
+            return;
+
+        if (preloadRoutine != null)
+            StopCoroutine(preloadRoutine);
+
+        int nextIndex = PickNextIndex();
+        preloadRoutine = StartCoroutine(PreloadClip(nextIndex));
+    }
+
+    private IEnumerator PreloadClip(int index)
+    {
+        preloadedIndex = -1;
+
+        if (!IsValidIndex(index))
+        {
+            preloadRoutine = null;
+            yield break;
+        }
+
+        AudioClip clip = playlist[index];
+
+        if (clip == null)
+        {
+            preloadRoutine = null;
+            yield break;
+        }
+
+        if (clip.loadState == AudioDataLoadState.Unloaded)
+            clip.LoadAudioData();
+
+        while (clip.loadState == AudioDataLoadState.Loading)
+            yield return null;
+
+        if (clip.loadState == AudioDataLoadState.Loaded)
+            preloadedIndex = index;
+
+        preloadRoutine = null;
+    }
+
+    private bool IsValidIndex(int index)
+    {
+        return playlist != null && index >= 0 && index < playlist.Length;
     }
 
     private bool HasCurrentClipFinished()

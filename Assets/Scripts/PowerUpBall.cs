@@ -26,6 +26,18 @@ public class PowerUpBall : MonoBehaviour
             SetCollidersAsTriggers();
     }
 
+    private void OnEnable()
+    {
+        consumed = false;
+        stoppedTimer = 0f;
+
+        if (body == null)
+            body = GetComponent<Rigidbody>();
+
+        if (CompareTag(FireTag))
+            SetCollidersAsTriggers();
+    }
+
     private void FixedUpdate()
     {
         if (!CompareTag(FireTag) || consumed || body == null)

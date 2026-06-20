@@ -1,0 +1,76 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Skin Prefabs
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Skin Prefabs
+  m_GUID: 1ea4a5d0f13727f488478daebabd01ac
+  m_SerializeEntries:
+  - m_GUID: 1969d6e76ccb3724ab9dbf07a9192b8b
+    m_Address: GreenPoolStick
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 284b58a9db3aab141af6765154e63616
+    m_Address: BluePoolStick
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 305bcfd16f3741f4882ff03d6768606f
+    m_Address: DefaultPoolStick
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3f170e31b8d6b1b49bc9d8f4eed27eba
+    m_Address: PurplePoolStick
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 508a9e4ecc4fa76428141a3c41a88ed6
+    m_Address: RedPoolStick
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 55142a3d6c747814482a60cc4a531f43
+    m_Address: YellowPoolStick
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5bb480a3d34eaca49b03ae522b1896f0
+    m_Address: BoardRed
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: adc53d61e5c9bec49a72217bacda12ff
+    m_Address: BoardPurple
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b4d64a08ec6784d479dac6f1e2b3f88c
+    m_Address: BoardBlue
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ceab46447f3b0024f90b6bbe9adae393
+    m_Address: PinkPoolStick
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: defbce241a0f1fb4d9cbe7012f0a11b9
+    m_Address: BoardDefault
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: e9fbcfba6690f394f9dbc88a2b77f1f0, type: 2}
+  m_SchemaSet:
+    m_Schemas: []

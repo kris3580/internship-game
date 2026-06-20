@@ -33,8 +33,8 @@ public class BallPlacer : MonoBehaviour
     [SerializeField] private ParticleSystem hitParticle;
 
     private GameObject pendingBall;
-    private GameObject queuedPowerUpPrefab;
-    private GameObject nextNormalPrefab;
+    private string queuedPowerUpTag;
+    private string nextNormalTag;
     private bool pendingBallIsPowerUp;
     private Action queuedPowerUpReleased;
     private Action pendingPowerUpReleased;
@@ -50,6 +50,8 @@ public class BallPlacer : MonoBehaviour
     private IAudioService audioService;
     [InjectOptional] private IAudioService injectedAudioService;
     [InjectOptional] private IBallRegistry ballRegistry;
+    [InjectOptional] private IBallFactory ballFactory;
+    [InjectOptional] private IGameStateMachine gameStateMachine;
     [InjectOptional] private IslandManager injectedIslandManager;
     [Inject(Optional = true, Id = GameSceneInstaller.SpawnedBallsParentId)]
     private Transform injectedSpawnedBallsParent;
@@ -65,6 +67,7 @@ public class BallPlacer : MonoBehaviour
         audioService = injectedAudioService ?? audioManager;
 
         currentSpawnZ = Mathf.Clamp(spawnPosition.z, minZ, maxZ);
+        ballFactory?.RegisterPrefabs(ballPrefabs);
 
         EnsureEventSystem();
     }
@@ -77,7 +80,7 @@ public class BallPlacer : MonoBehaviour
 
     private void Update()
     {
-        if (pendingBall == null || dropQueued)
+        if (pendingBall == null || dropQueued || (gameStateMachine != null && !gameStateMachine.IsPlaying))
             return;
 
         bool shouldDrop = false;
@@ -116,15 +119,18 @@ public class BallPlacer : MonoBehaviour
             return;
         }
 
-        GameObject prefab = GetNextPrefab();
+        string ballTag = GetNextTag();
 
-        if (prefab == null)
+        if (string.IsNullOrWhiteSpace(ballTag))
         {
             Debug.LogWarning("BallPlacer tried to spawn an empty prefab slot.", this);
             return;
         }
 
-        pendingBall = Instantiate(prefab, GetSpawnPosition(currentSpawnZ), Quaternion.Euler(spawnEulerAngles));
+        pendingBall = ballFactory != null
+            ? ballFactory.Spawn(ballTag, GetSpawnPosition(currentSpawnZ), Quaternion.Euler(spawnEulerAngles), spawnedBallsParent)
+            : Instantiate(GetPrefabForTag(ballTag), GetSpawnPosition(currentSpawnZ), Quaternion.Euler(spawnEulerAngles));
+
         ParentPendingBallForOrganization();
         pendingRigidbody = pendingBall.GetComponent<Rigidbody>();
         pendingColliders = pendingBall.GetComponentsInChildren<Collider>();
@@ -136,11 +142,12 @@ public class BallPlacer : MonoBehaviour
             return;
         }
 
+        pendingRigidbody.isKinematic = false;
+        pendingRigidbody.useGravity = false;
+        pendingRigidbody.detectCollisions = false;
         pendingRigidbody.linearVelocity = Vector3.zero;
         pendingRigidbody.angularVelocity = Vector3.zero;
-        pendingRigidbody.useGravity = false;
         pendingRigidbody.isKinematic = true;
-        pendingRigidbody.detectCollisions = false;
         MovePoolStickWithPendingBall();
         audioService?.PlayBallPlace(pendingBall.transform.position);
         RefreshNextBallText();
@@ -320,21 +327,21 @@ public class BallPlacer : MonoBehaviour
         hitParticle.Play(true);
     }
 
-    public bool QueuePowerUp(GameObject powerUpPrefab, Action onReleased = null)
+    public bool QueuePowerUp(string powerUpTag, Action onReleased = null)
     {
-        if (powerUpPrefab == null || dropQueued || queuedPowerUpPrefab != null)
+        if (string.IsNullOrWhiteSpace(powerUpTag) || dropQueued || !string.IsNullOrWhiteSpace(queuedPowerUpTag))
             return false;
 
         if (pendingBall != null)
         {
             ballRegistry?.Unregister(pendingBall);
-            Destroy(pendingBall);
+            DespawnBall(pendingBall);
             pendingBall = null;
             pendingRigidbody = null;
             pendingColliders = new Collider[0];
         }
 
-        queuedPowerUpPrefab = powerUpPrefab;
+        queuedPowerUpTag = powerUpTag;
         queuedPowerUpReleased = onReleased;
         suppressDropUntilPointerReleased = true;
         SpawnNextBall();
@@ -360,12 +367,12 @@ public class BallPlacer : MonoBehaviour
         return false;
     }
 
-    private GameObject GetNextPrefab()
+    private string GetNextTag()
     {
-        if (queuedPowerUpPrefab != null)
+        if (!string.IsNullOrWhiteSpace(queuedPowerUpTag))
         {
-            GameObject powerUp = queuedPowerUpPrefab;
-            queuedPowerUpPrefab = null;
+            string powerUp = queuedPowerUpTag;
+            queuedPowerUpTag = null;
             pendingBallIsPowerUp = true;
             pendingPowerUpReleased = queuedPowerUpReleased;
             queuedPowerUpReleased = null;
@@ -375,20 +382,24 @@ public class BallPlacer : MonoBehaviour
         pendingBallIsPowerUp = false;
         pendingPowerUpReleased = null;
 
-        if (nextNormalPrefab == null)
-            nextNormalPrefab = PickNormalPrefab();
+        if (string.IsNullOrWhiteSpace(nextNormalTag))
+            nextNormalTag = PickNormalTag();
 
-        GameObject prefab = nextNormalPrefab;
-        nextNormalPrefab = PickNormalPrefab();
-        return prefab;
+        string tag = nextNormalTag;
+        nextNormalTag = PickNormalTag();
+        return tag;
     }
 
-    private GameObject PickNormalPrefab()
+    private string PickNormalTag()
     {
+        if (ballFactory != null)
+            return ballFactory.GetRandomNormalTag();
+
         if (ballPrefabs == null || ballPrefabs.Length == 0)
             return null;
 
-        return ballPrefabs[UnityEngine.Random.Range(0, ballPrefabs.Length)];
+        GameObject prefab = ballPrefabs[UnityEngine.Random.Range(0, ballPrefabs.Length)];
+        return prefab != null ? prefab.tag : null;
     }
 
     private void RefreshNextBallText()
@@ -399,10 +410,24 @@ public class BallPlacer : MonoBehaviour
         if (nextBallText == null)
             return;
 
-        if (nextNormalPrefab == null)
-            nextNormalPrefab = PickNormalPrefab();
+        if (string.IsNullOrWhiteSpace(nextNormalTag))
+            nextNormalTag = PickNormalTag();
 
-        nextBallText.text = nextNormalPrefab != null ? nextNormalPrefab.tag : string.Empty;
+        nextBallText.text = nextNormalTag ?? string.Empty;
+    }
+
+    private GameObject GetPrefabForTag(string ballTag)
+    {
+        TryGetPrefabForTag(ballTag, out GameObject prefab);
+        return prefab;
+    }
+
+    private void DespawnBall(GameObject ball)
+    {
+        if (ballFactory != null)
+            ballFactory.Despawn(ball);
+        else
+            Destroy(ball);
     }
 
     private TMP_Text FindTextByName(string objectName)

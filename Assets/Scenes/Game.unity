@@ -9197,7 +9197,7 @@ MonoBehaviour:
   earthPrefab: {fileID: 6307870824415479326, guid: 842e14abf8512c946b32c7fe094ff0af, type: 3}
   waterPrefab: {fileID: 3614112810464961032, guid: c0c708234f96c86489b38069c6ea8cc1, type: 3}
   windPrefab: {fileID: 4329584378171603819, guid: 7404bcfdf0dba3b4d904b3e41229e943, type: 3}
-  startingCount: 3
+  startingCount: 100
 --- !u!1 &1714645798
 GameObject:
   m_ObjectHideFlags: 0

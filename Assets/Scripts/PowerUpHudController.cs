@@ -1,6 +1,7 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Zenject;
 
 public class PowerUpHudController : MonoBehaviour
 {
@@ -9,7 +10,10 @@ public class PowerUpHudController : MonoBehaviour
     [SerializeField] private GameObject earthPrefab;
     [SerializeField] private GameObject waterPrefab;
     [SerializeField] private GameObject windPrefab;
-    [SerializeField] private int startingCount = 3;
+    [SerializeField] private int startingCount = 100;
+
+    [InjectOptional] private IBallFactory ballFactory;
+    [InjectOptional] private ISaveSystem saveSystem;
 
     private PowerUpSlot fire;
     private PowerUpSlot earth;
@@ -21,10 +25,12 @@ public class PowerUpHudController : MonoBehaviour
         if (ballPlacer == null)
             ballPlacer = FindFirstObjectByType<BallPlacer>();
 
-        fire = new PowerUpSlot("PowerUpFireButton", firePrefab, startingCount);
-        earth = new PowerUpSlot("PowerUpEarthButton", earthPrefab, startingCount);
-        water = new PowerUpSlot("PowerUpWaterButton", waterPrefab, startingCount);
-        wind = new PowerUpSlot("PowerUpWindButton", windPrefab, startingCount);
+        ballFactory?.RegisterPrefabs(firePrefab, earthPrefab, waterPrefab, windPrefab);
+
+        fire = new PowerUpSlot("PowerUpFireButton", "fire", LoadCount("fire"));
+        earth = new PowerUpSlot("PowerUpEarthButton", "earth", LoadCount("earth"));
+        water = new PowerUpSlot("PowerUpWaterButton", "water", LoadCount("water"));
+        wind = new PowerUpSlot("PowerUpWindButton", "wind", LoadCount("wind"));
 
         Bind(fire);
         Bind(earth);
@@ -63,25 +69,46 @@ public class PowerUpHudController : MonoBehaviour
 
     private void TryUse(PowerUpSlot slot)
     {
-        if (slot.Count <= 0 || ballPlacer == null || slot.Prefab == null)
+        if (slot.Count <= 0 || ballPlacer == null)
             return;
 
-        if (!ballPlacer.QueuePowerUp(slot.Prefab, () => Spend(slot)))
+        if (!ballPlacer.QueuePowerUp(slot.BallTag, () => Spend(slot)))
             return;
     }
 
     private void Spend(PowerUpSlot slot)
     {
         slot.Count = Mathf.Max(0, slot.Count - 1);
+        SaveCount(slot);
         slot.Refresh();
+    }
+
+    private int LoadCount(string ballTag)
+    {
+        string key = GetSaveKey(ballTag);
+        return saveSystem != null ? saveSystem.GetInt(key, startingCount) : startingCount;
+    }
+
+    private void SaveCount(PowerUpSlot slot)
+    {
+        if (saveSystem == null)
+            return;
+
+        saveSystem.SetInt(GetSaveKey(slot.BallTag), slot.Count);
+        saveSystem.Save();
+    }
+
+    private string GetSaveKey(string ballTag)
+    {
+        return $"powerup.{ballTag}.count";
     }
 
     [System.Serializable]
     private sealed class PowerUpSlot
     {
-        public PowerUpSlot(string buttonName, GameObject prefab, int count)
+        public PowerUpSlot(string buttonName, string ballTag, int count)
         {
-            Prefab = prefab;
+            BallTag = ballTag;
             Count = count;
 
             GameObject buttonObject = GameObject.Find(buttonName);
@@ -91,7 +118,7 @@ public class PowerUpHudController : MonoBehaviour
 
         public Button Button { get; }
         public TMP_Text CountText { get; }
-        public GameObject Prefab { get; }
+        public string BallTag { get; }
         public int Count { get; set; }
 
         public void Refresh()
@@ -100,7 +127,7 @@ public class PowerUpHudController : MonoBehaviour
                 CountText.text = Count.ToString();
 
             if (Button != null)
-                Button.interactable = Count > 0 && Prefab != null;
+                Button.interactable = Count > 0;
         }
     }
 }

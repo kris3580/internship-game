@@ -20,6 +20,8 @@ public class GameSceneInstaller : MonoInstaller
         BindSceneTransform(spawnedBallsParent, SpawnedBallsParentId, "SpawnedBalls");
         BindSceneTransform(cameraPoint, CameraPointId, "CameraPoint");
 
+        Container.Bind<IGameStateMachine>().To<GameStateMachine>().AsSingle();
+        Container.Bind<IBallFactory>().To<BallFactory>().AsSingle();
         Container.BindInterfacesAndSelfTo<BallRegistry>().AsSingle().NonLazy();
     }
 
