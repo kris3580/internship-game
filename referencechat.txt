@@ -1,0 +1,178 @@
+I dug around, and I couldn't find anything on Google Play that matches your mechanic closely.
+
+What I found instead falls into three buckets:
+
+1. Suika / 2048 Ball clones
+
+These are everywhere:
+
+2048 Fusion Balls
+2048 Combined Ball
+2048 Balls
+Ball Run 2048
+Falling Balls: Merge the Same
+
+They all use:
+
+5 + 5 -> 10
+or
+5 + 5 -> 6
+
+via collision-based merging.
+
+That's not your mechanic.
+
+2. Color-group games
+
+Examples:
+
+Color King
+Sticky Balls
+Various Connect Balls games
+
+These use:
+
+5 connected red balls -> disappear
+
+or
+
+4 connected blobs -> disappear
+
+But:
+
+Usually on a grid.
+Usually color-based.
+Usually fixed thresholds.
+
+This is closer to your idea.
+
+3. Physics + grouping
+
+There are games where:
+
+balls fall,
+physics matters,
+matching colors connect,
+
+but they almost always merge into larger balls rather than using your "N copies of N" rule.
+
+The part I could NOT find
+
+I specifically couldn't find a game whose core rule is:
+
+3 needs 3 connected 3s
+4 needs 4 connected 4s
+5 needs 5 connected 5s
+...
+
+with:
+
+falling physics
+survival gameplay
+overflow loss condition
+
+The closest relatives are things like Puyo Puyo, Color King, and some physics-based color-connection games, but they all use a fixed threshold (usually 3, 4, or 5) regardless of the piece type.
+
+What worries me more
+
+The mechanic itself seems uncommon.
+
+The thing I'd be more concerned about is whether players can immediately understand:
+
+6 requires 6
+7 requires 7
+8 requires 8
+
+Because that's the real innovation.
+
+Most games teach:
+
+same + same = bigger
+
+in 2 seconds.
+
+Your game teaches:
+
+the number is both
+the identity
+and
+the cluster size requirement
+
+which is clever, but you'll need a very good tutorial/UI.
+
+My conclusion after looking through Play Store-style games:
+
+I found plenty of "physics balls + numbers" games and plenty of "connect groups to clear" games, but I did not find a notable game that combines them with the self-referential rule "N connected copies of N clears itself." The closest competition is probably the ocean of Suika/2048-ball clones, not because they're mechanically identical, but because they're competing for the same "drop balls into a container and survive" audience.
+
+Ahh, yes — that’s much cooler.
+
+You mean a special “probability ball” that physically hits normal balls, and the ball it touches changes that number’s spawn weight.
+
+Example:
+
+Green modifier ball hits a 7
+→ 7 spawn weight +1
+Red modifier ball hits a 4
+→ 4 spawn weight -1
+
+That is much better than a menu slider because the probability control is part of the actual physics game.
+
+Why it works
+
+It turns probability control into a skill shot.
+
+Instead of:
+
+click +1 on 7
+
+the player has to:
+
+aim the probability ball so it hits a 7
+
+That creates a very satisfying connection between the board state and the probability system.
+
+Possible modifier balls
+
+Boost ball
+
+Hit a number → that number becomes more common
+
+Suppress ball
+
+Hit a number → that number becomes less common
+
+Swap ball
+
+First hit decreases, second hit increases
+
+Lockout ball
+
+Hit a number → that number cannot appear for the next 5 drops
+
+Favorite ball
+
+Hit a number → that number gets boosted until its next island clears
+Balance idea
+
+For your first prototype, I’d do:
+
+Green ball:
++1 weight to the first numbered ball it touches
+
+Red ball:
+-1 weight to the first numbered ball it touches
+minimum weight = 1
+
+Do not allow weight to go to 0 at first. A minimum of 1 keeps the game from becoming too solved.
+
+Even better
+
+Make the modifier ball itself still fall into the container and take space until used.
+
+So the player has a decision:
+
+Do I use this boost ball now, or is it clogging my board?
+
+That makes it part of survival, not just a free menu action.
+
+This is a strong mechanic. It makes your “probability manipulation” feel physical, readable, and unique.
