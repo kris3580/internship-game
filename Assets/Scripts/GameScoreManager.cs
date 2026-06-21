@@ -11,6 +11,8 @@ public class GameScoreManager : MonoBehaviour
     private int score;
     private int destructions;
 
+    public int Destructions => destructions;
+
     private void Awake()
     {
         if (scoreText == null)

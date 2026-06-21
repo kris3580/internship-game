@@ -1,9 +1,15 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using Zenject;
 
 public class LoseLineGameOver : MonoBehaviour
 {
+    [Header("Game Over UI")]
+    [SerializeField] private GameObject gameOverObject;
+    [SerializeField] private TMP_Text moneyCountText;
+    [SerializeField] private GameScoreManager scoreManager;
+
     [SerializeField] private LayerMask ballLayer;
     [SerializeField] private int requiredBallCount = 3;
     [SerializeField] private float checkInterval = 0.25f;
@@ -21,6 +27,14 @@ public class LoseLineGameOver : MonoBehaviour
 
     private float Height => transform.position.y + heightOffset;
 
+    private void Awake()
+    {
+        ResolveReferences();
+
+        if (gameOverObject != null)
+            gameOverObject.SetActive(false);
+    }
+
     private void Update()
     {
         if (gameOverLogged || Time.time < nextCheckTime)
@@ -32,6 +46,7 @@ public class LoseLineGameOver : MonoBehaviour
         {
             gameOverLogged = true;
             gameStateMachine?.SetGameOver();
+            ShowGameOver();
             Debug.Log("Game over", this);
         }
 
@@ -129,6 +144,51 @@ public class LoseLineGameOver : MonoBehaviour
         return ballLayer.value == 0
             || IsInMask(ball.layer, ballLayer.value)
             || IsInMask(col.gameObject.layer, ballLayer.value);
+    }
+
+    private void ShowGameOver()
+    {
+        ResolveReferences();
+
+        if (moneyCountText != null)
+            moneyCountText.text = scoreManager != null ? scoreManager.Destructions.ToString() : "0";
+
+        if (gameOverObject != null)
+            gameOverObject.SetActive(true);
+    }
+
+    private void ResolveReferences()
+    {
+        if (gameOverObject == null)
+            gameOverObject = FindSceneObject("GameOver");
+
+        if (moneyCountText == null)
+            moneyCountText = FindSceneComponent<TMP_Text>("MoneyCountText");
+
+        if (scoreManager == null)
+            scoreManager = FindFirstObjectByType<GameScoreManager>();
+    }
+
+    private static T FindSceneComponent<T>(string objectName)
+        where T : Component
+    {
+        GameObject found = FindSceneObject(objectName);
+        return found != null ? found.GetComponent<T>() : null;
+    }
+
+    private static GameObject FindSceneObject(string objectName)
+    {
+        foreach (GameObject candidate in Resources.FindObjectsOfTypeAll<GameObject>())
+        {
+            if (candidate.name == objectName &&
+                candidate.hideFlags == HideFlags.None &&
+                candidate.scene.IsValid())
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     private void OnDrawGizmos()

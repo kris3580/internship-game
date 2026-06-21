@@ -37,6 +37,7 @@ public class MusicPlaylistPlayer : MonoBehaviour
         source.loop = false;
         source.playOnAwake = false;
         source.volume = volume;
+        source.mute = !AudioPreferences.MusicEnabled;
 
         if (playOnAwake)
             PlayNext();
@@ -49,6 +50,8 @@ public class MusicPlaylistPlayer : MonoBehaviour
 
         if (source == null || applicationSuspended)
             return;
+
+        source.mute = !AudioPreferences.MusicEnabled;
 
         if (source.isPlaying)
         {

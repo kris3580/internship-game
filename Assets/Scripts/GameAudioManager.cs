@@ -219,7 +219,7 @@ public class GameAudioManager : MonoBehaviour, IAudioService
 
     private void PlayAt(Vector3 position, AudioClip clip, float volume, float pitch)
     {
-        if (clip == null)
+        if (clip == null || !AudioPreferences.SoundEnabled)
             return;
 
         AudioSource source = GetSource();
