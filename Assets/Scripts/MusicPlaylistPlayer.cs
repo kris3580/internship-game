@@ -12,6 +12,7 @@ public class MusicPlaylistPlayer : MonoBehaviour
     [SerializeField] private float volume = 0.45f;
     [SerializeField] private float endTolerance = 0.15f;
     [SerializeField] private bool preloadNextClip = true;
+    [SerializeField] private bool preloadEntirePlaylist = true;
 
     private AudioSource source;
     private int currentIndex = -1;
@@ -21,6 +22,7 @@ public class MusicPlaylistPlayer : MonoBehaviour
     private bool applicationSuspended;
     private bool resumeAfterSuspension;
     private int suspendedTimeSamples;
+    private bool playlistPreloaded;
 
     private void Awake()
     {
@@ -31,6 +33,7 @@ public class MusicPlaylistPlayer : MonoBehaviour
         }
 
         Instance = this;
+        transform.SetParent(null);
         DontDestroyOnLoad(gameObject);
 
         source = GetComponent<AudioSource>();
@@ -39,7 +42,9 @@ public class MusicPlaylistPlayer : MonoBehaviour
         source.volume = volume;
         source.mute = !AudioPreferences.MusicEnabled;
 
-        if (playOnAwake)
+        if (preloadEntirePlaylist)
+            StartCoroutine(PreloadPlaylistThenStart());
+        else if (playOnAwake)
             PlayNext();
     }
 
@@ -49,6 +54,9 @@ public class MusicPlaylistPlayer : MonoBehaviour
             return;
 
         if (source == null || applicationSuspended)
+            return;
+
+        if (preloadEntirePlaylist && !playlistPreloaded)
             return;
 
         source.mute = !AudioPreferences.MusicEnabled;
@@ -161,6 +169,31 @@ public class MusicPlaylistPlayer : MonoBehaviour
             preloadedIndex = index;
 
         preloadRoutine = null;
+    }
+
+    private IEnumerator PreloadPlaylistThenStart()
+    {
+        if (playlist != null)
+        {
+            for (int i = 0; i < playlist.Length; i++)
+            {
+                AudioClip clip = playlist[i];
+
+                if (clip == null)
+                    continue;
+
+                if (clip.loadState == AudioDataLoadState.Unloaded)
+                    clip.LoadAudioData();
+
+                while (clip.loadState == AudioDataLoadState.Loading)
+                    yield return null;
+            }
+        }
+
+        playlistPreloaded = true;
+
+        if (playOnAwake)
+            PlayNext();
     }
 
     private bool IsValidIndex(int index)

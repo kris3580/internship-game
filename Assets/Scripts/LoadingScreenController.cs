@@ -5,7 +5,11 @@ using Zenject;
 
 public class LoadingScreenController : MonoBehaviour
 {
+    private const string HasOpenedGameKey = "HasOpenedGameBefore";
+
     [SerializeField] private string targetSceneName = "Game";
+    [SerializeField] private string firstLaunchSceneName = "Game";
+    [SerializeField] private string returningPlayerSceneName = "Menu";
     [SerializeField] private float minimumDisplaySeconds = 2f;
     [SerializeField] private Image progressFill;
 
@@ -22,6 +26,7 @@ public class LoadingScreenController : MonoBehaviour
 
     private void Start()
     {
+        targetSceneName = GetTargetSceneName();
         StartCoroutine(LoadTargetScene());
     }
 
@@ -138,6 +143,18 @@ public class LoadingScreenController : MonoBehaviour
 
         if (progressFill != null)
             progressFill.fillAmount = displayedProgress;
+    }
+
+    private string GetTargetSceneName()
+    {
+        if (!PlayerPrefs.HasKey(HasOpenedGameKey))
+        {
+            PlayerPrefs.SetInt(HasOpenedGameKey, 1);
+            PlayerPrefs.Save();
+            return firstLaunchSceneName;
+        }
+
+        return returningPlayerSceneName;
     }
 
     private void OnValidate()

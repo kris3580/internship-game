@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System;
 using TMPro;
 using UnityEngine;
 
@@ -12,6 +13,7 @@ public class GameScoreManager : MonoBehaviour
     private int destructions;
 
     public int Destructions => destructions;
+    public event Action<int> DestructionsChanged;
 
     private void Awake()
     {
@@ -40,6 +42,7 @@ public class GameScoreManager : MonoBehaviour
     {
         destructions++;
         score += (island?.Count ?? 0) * Mathf.Max(1, pointsPerBall);
+        DestructionsChanged?.Invoke(destructions);
         RefreshText();
     }
 

@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 3777351154136472630}
   - component: {fileID: 8078093407630981182}
   - component: {fileID: 8215549586986060360}
+  - component: {fileID: 772400002}
   m_Layer: 6
   m_Name: MinusBall
   m_TagString: '-'
@@ -141,6 +142,22 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 2
   m_CollisionDetection: 0
+--- !u!114 &772400002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7430890728609199019}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f2d23b14ae9422ca604267f915f26e2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  plusClip: {fileID: 8300000, guid: 59466ce8fbe8d2e4bb473493d8669831, type: 3}
+  minusClip: {fileID: 8300000, guid: 8baef7370bb387b47a18b65457a4fa61, type: 3}
+  plusVolume: 1
+  minusVolume: 0.767
 --- !u!1 &7449656016600887159
 GameObject:
   m_ObjectHideFlags: 0

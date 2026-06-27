@@ -158,6 +158,14 @@ MonoBehaviour:
   stoppedDuration: 0.35
   earthSpawnCount: 5
   earthSpawnRadius: 0.75
+  fireLoopClip: {fileID: 8300000, guid: b6954cedc5ed49842a3ad8b18ec44766, type: 3}
+  earthLoopClip: {fileID: 8300000, guid: 70ad106bb7c728a4492eb608e616f784, type: 3}
+  waterLoopClip: {fileID: 8300000, guid: 36512f758ce7178429f4eea811ab61b7, type: 3}
+  windLoopClip: {fileID: 8300000, guid: bf133a1257a8dc24cbe47701d1d9e842, type: 3}
+  fireLoopVolume: 1
+  earthLoopVolume: 1
+  waterLoopVolume: 1
+  windLoopVolume: 1
 --- !u!1 &8208397218008978555
 GameObject:
   m_ObjectHideFlags: 0

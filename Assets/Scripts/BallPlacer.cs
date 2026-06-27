@@ -18,6 +18,8 @@ public class BallPlacer : MonoBehaviour
     [SerializeField] private Vector3 poolStickOffset = new(-0.15f, 0.73f, -0.03f);
     [SerializeField] private Animator poolAnimator;
     [SerializeField] private string hitAnimationStateName = "Hit";
+    [SerializeField] private string startAnimationStateName = "PoolStickStartAnimation";
+    [SerializeField] private float startAnimationLockSeconds = 1.25f;
     [SerializeField] private float dropDelay = 0.15f;
     [SerializeField] private Vector3 dropImpulse = new(0f, -1.5f, 0f);
     [SerializeField] private ForceMode dropImpulseMode = ForceMode.Impulse;
@@ -31,6 +33,7 @@ public class BallPlacer : MonoBehaviour
     [SerializeField] private bool blockPlacementOverUi;
     [SerializeField] private TMP_Text nextBallText;
     [SerializeField] private ParticleSystem hitParticle;
+    [SerializeField] private float particleLingerSeconds = 4f;
 
     private GameObject pendingBall;
     private string queuedPowerUpTag;
@@ -46,6 +49,7 @@ public class BallPlacer : MonoBehaviour
     private bool dropQueued;
     private bool mouseStartedOverUi;
     private bool suppressDropUntilPointerReleased;
+    private bool startAnimationActive;
     private int uiBlockedFingerId = -1;
     private IAudioService audioService;
     [InjectOptional] private IAudioService injectedAudioService;
@@ -53,6 +57,7 @@ public class BallPlacer : MonoBehaviour
     [InjectOptional] private IBallFactory ballFactory;
     [InjectOptional] private IGameStateMachine gameStateMachine;
     [InjectOptional] private IslandManager injectedIslandManager;
+    private FatePointsManager fatePointsManager;
     [Inject(Optional = true, Id = GameSceneInstaller.SpawnedBallsParentId)]
     private Transform injectedSpawnedBallsParent;
 
@@ -68,19 +73,28 @@ public class BallPlacer : MonoBehaviour
 
         currentSpawnZ = Mathf.Clamp(spawnPosition.z, minZ, maxZ);
         ballFactory?.RegisterPrefabs(ballPrefabs);
+        fatePointsManager = FindFirstObjectByType<FatePointsManager>();
 
         EnsureEventSystem();
     }
 
     private void Start()
     {
+        if (startAnimationLockSeconds > 0f && poolAnimator != null && !string.IsNullOrWhiteSpace(startAnimationStateName))
+        {
+            startAnimationActive = true;
+            poolAnimator.Play(startAnimationStateName, 0, 0f);
+            StartCoroutine(ReleaseStartAnimationLock());
+            return;
+        }
+
         if (spawnOnStart)
             SpawnNextBall();
     }
 
     private void Update()
     {
-        if (pendingBall == null || dropQueued || (gameStateMachine != null && !gameStateMachine.IsPlaying))
+        if (startAnimationActive || pendingBall == null || dropQueued || (gameStateMachine != null && !gameStateMachine.IsPlaying))
             return;
 
         bool shouldDrop = false;
@@ -110,6 +124,9 @@ public class BallPlacer : MonoBehaviour
     /// </summary>
     public void SpawnNextBall()
     {
+        if (startAnimationActive)
+            return;
+
         if (pendingBall != null)
             return;
 
@@ -193,6 +210,7 @@ public class BallPlacer : MonoBehaviour
             releasedRigidbody.angularVelocity = Vector3.zero;
             ballRegistry?.Register(releasedBall);
             islandManager?.RegisterBallShot(releasedBall);
+            NotifyBallSent(releasedBall);
             releasedRigidbody.AddForce(dropImpulse, dropImpulseMode);
         }
 
@@ -285,7 +303,7 @@ public class BallPlacer : MonoBehaviour
 
     private void MovePoolStickWithPendingBall()
     {
-        if (poolStick == null || pendingBall == null)
+        if (startAnimationActive || poolStick == null || pendingBall == null)
             return;
 
         MovePoolStickTo(pendingBall.transform.position);
@@ -301,7 +319,7 @@ public class BallPlacer : MonoBehaviour
 
     private void MovePoolStickTo(Vector3 ballPosition)
     {
-        if (poolStick == null)
+        if (startAnimationActive || poolStick == null)
             return;
 
         poolStick.position = ballPosition + poolStickOffset;
@@ -386,12 +404,23 @@ public class BallPlacer : MonoBehaviour
             nextNormalTag = PickNormalTag();
 
         string tag = nextNormalTag;
+
+        if (fatePointsManager == null)
+            fatePointsManager = FindFirstObjectByType<FatePointsManager>();
+
+        fatePointsManager?.PlaySpawnFeedback(tag);
         nextNormalTag = PickNormalTag();
         return tag;
     }
 
     private string PickNormalTag()
     {
+        if (fatePointsManager == null)
+            fatePointsManager = FindFirstObjectByType<FatePointsManager>();
+
+        if (fatePointsManager != null)
+            return fatePointsManager.PickNextTag();
+
         if (ballFactory != null)
             return ballFactory.GetRandomNormalTag();
 
@@ -416,6 +445,17 @@ public class BallPlacer : MonoBehaviour
         nextBallText.text = nextNormalTag ?? string.Empty;
     }
 
+    private void NotifyBallSent(GameObject releasedBall)
+    {
+        if (releasedBall == null)
+            return;
+
+        if (fatePointsManager == null)
+            fatePointsManager = FindFirstObjectByType<FatePointsManager>();
+
+        fatePointsManager?.RegisterSentBall(releasedBall.tag);
+    }
+
     private GameObject GetPrefabForTag(string ballTag)
     {
         TryGetPrefabForTag(ballTag, out GameObject prefab);
@@ -424,6 +464,8 @@ public class BallPlacer : MonoBehaviour
 
     private void DespawnBall(GameObject ball)
     {
+        BallParticleLinger.Preserve(ball, particleLingerSeconds);
+
         if (ballFactory != null)
             ballFactory.Despawn(ball);
         else
@@ -484,6 +526,15 @@ public class BallPlacer : MonoBehaviour
         SpawnNextBall();
     }
 
+    private IEnumerator ReleaseStartAnimationLock()
+    {
+        yield return new WaitForSeconds(startAnimationLockSeconds);
+        startAnimationActive = false;
+
+        if (spawnOnStart)
+            SpawnNextBall();
+    }
+
     private IEnumerator DropAfterDelay()
     {
         yield return new WaitForSeconds(dropDelay);
@@ -500,7 +551,9 @@ public class BallPlacer : MonoBehaviour
         }
 
         nextHitDelay = Mathf.Max(0f, nextHitDelay);
+        startAnimationLockSeconds = Mathf.Max(0f, startAnimationLockSeconds);
         dropDelay = Mathf.Max(0f, dropDelay);
+        particleLingerSeconds = Mathf.Max(0f, particleLingerSeconds);
         spawnPosition.x = 0f;
     }
 }

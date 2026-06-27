@@ -19,6 +19,8 @@ public class IslandManager : MonoBehaviour
     [SerializeField] private CameraShake comboCameraShake;
     [SerializeField] private float islandWaveDelay = 0.06f;
     [SerializeField] private float islandBallDelay = 0.025f;
+    [Header("Particle Linger")]
+    [SerializeField] private float particleLingerSeconds = 4f;
 
     private float nextAutomaticCheckTime;
     private bool warnedMissingLayer;
@@ -36,6 +38,7 @@ public class IslandManager : MonoBehaviour
     [InjectOptional] private CameraShake injectedComboCameraShake;
 
     public event Action<IReadOnlyList<GameObject>> IslandCleared;
+    public event Action<int> ComboChanged;
 
     private void Awake()
     {
@@ -132,6 +135,33 @@ public class IslandManager : MonoBehaviour
             return;
 
         ClearIsland(matchingBalls, ballTag, matchingBalls.Count, balls, activeBallMask);
+    }
+
+    public int GetClosestIslandNeed(string ballTag)
+    {
+        if (string.IsNullOrWhiteSpace(ballTag) || !int.TryParse(ballTag, out int requiredIslandSize))
+            return int.MaxValue;
+
+        int activeBallMask = GetActiveBallMask();
+        Dictionary<GameObject, Collider> balls = CollectBalls(activeBallMask);
+        HashSet<GameObject> visited = new();
+        int bestCount = 0;
+
+        foreach (KeyValuePair<GameObject, Collider> pair in balls)
+        {
+            GameObject ball = pair.Key;
+
+            if (ball == null || visited.Contains(ball) || !ball.CompareTag(ballTag))
+                continue;
+
+            List<GameObject> island = FindIsland(ball, balls, activeBallMask, visited);
+            bestCount = Mathf.Max(bestCount, island.Count);
+        }
+
+        if (bestCount == 0)
+            return int.MaxValue;
+
+        return Mathf.Max(0, requiredIslandSize - bestCount);
     }
 
     public void SpawnCopiesAround(GameObject sourceBall, int count, float radius)
@@ -320,6 +350,8 @@ public class IslandManager : MonoBehaviour
 
         if (comboCount >= 2)
             ShowCombo(comboCount);
+
+        ComboChanged?.Invoke(comboCount);
     }
 
     private void ShowCombo(int count)
@@ -570,10 +602,13 @@ public class IslandManager : MonoBehaviour
         automaticCheckInterval = Mathf.Max(0.02f, automaticCheckInterval);
         islandWaveDelay = Mathf.Max(0f, islandWaveDelay);
         islandBallDelay = Mathf.Max(0f, islandBallDelay);
+        particleLingerSeconds = Mathf.Max(0f, particleLingerSeconds);
     }
 
     private void DespawnBall(GameObject ball)
     {
+        BallParticleLinger.Preserve(ball, particleLingerSeconds);
+
         if (ballFactory != null)
             ballFactory.Despawn(ball);
         else

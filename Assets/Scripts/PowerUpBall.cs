@@ -11,9 +11,19 @@ public class PowerUpBall : MonoBehaviour
     [SerializeField] private float stoppedDuration = 0.35f;
     [SerializeField] private int earthSpawnCount = 5;
     [SerializeField] private float earthSpawnRadius = 0.75f;
+    [Header("Looping Audio")]
+    [SerializeField] private AudioClip fireLoopClip;
+    [SerializeField] private AudioClip earthLoopClip;
+    [SerializeField] private AudioClip waterLoopClip;
+    [SerializeField] private AudioClip windLoopClip;
+    [SerializeField] private float fireLoopVolume = 0.45f;
+    [SerializeField] private float earthLoopVolume = 0.35f;
+    [SerializeField] private float waterLoopVolume = 0.4f;
+    [SerializeField] private float windLoopVolume = 0.35f;
 
     private IslandManager islandManager;
     private Rigidbody body;
+    private AudioSource loopSource;
     private float stoppedTimer;
     private bool consumed;
 
@@ -21,6 +31,7 @@ public class PowerUpBall : MonoBehaviour
     {
         islandManager = FindFirstObjectByType<IslandManager>();
         body = GetComponent<Rigidbody>();
+        EnsureLoopSource();
 
         if (CompareTag(FireTag))
             SetCollidersAsTriggers();
@@ -34,8 +45,16 @@ public class PowerUpBall : MonoBehaviour
         if (body == null)
             body = GetComponent<Rigidbody>();
 
+        StartLoopSound();
+
         if (CompareTag(FireTag))
             SetCollidersAsTriggers();
+    }
+
+    private void OnDisable()
+    {
+        if (loopSource != null)
+            loopSource.Stop();
     }
 
     private void FixedUpdate()
@@ -149,6 +168,8 @@ public class PowerUpBall : MonoBehaviour
     private void ConsumeSelf()
     {
         consumed = true;
+        if (loopSource != null)
+            loopSource.Stop();
         islandManager?.DestroyBall(gameObject);
     }
 
@@ -158,5 +179,68 @@ public class PowerUpBall : MonoBehaviour
 
         foreach (Collider col in colliders)
             col.isTrigger = true;
+    }
+
+    private void EnsureLoopSource()
+    {
+        if (loopSource != null)
+            return;
+
+        loopSource = GetComponent<AudioSource>();
+
+        if (loopSource == null)
+            loopSource = gameObject.AddComponent<AudioSource>();
+
+        loopSource.playOnAwake = false;
+        loopSource.loop = true;
+        loopSource.spatialBlend = 0.35f;
+    }
+
+    private void StartLoopSound()
+    {
+        EnsureLoopSource();
+
+        AudioClip clip = null;
+        float volume = 1f;
+
+        if (CompareTag(FireTag))
+        {
+            clip = fireLoopClip;
+            volume = fireLoopVolume;
+        }
+        else if (CompareTag(EarthTag))
+        {
+            clip = earthLoopClip;
+            volume = earthLoopVolume;
+        }
+        else if (CompareTag(WaterTag))
+        {
+            clip = waterLoopClip;
+            volume = waterLoopVolume;
+        }
+        else if (CompareTag(WindTag))
+        {
+            clip = windLoopClip;
+            volume = windLoopVolume;
+        }
+
+        if (clip == null || !AudioPreferences.SoundEnabled)
+            return;
+
+        loopSource.clip = clip;
+        loopSource.volume = Mathf.Max(0f, volume);
+        loopSource.Play();
+    }
+
+    private void OnValidate()
+    {
+        stoppedSpeed = Mathf.Max(0f, stoppedSpeed);
+        stoppedDuration = Mathf.Max(0f, stoppedDuration);
+        earthSpawnCount = Mathf.Max(0, earthSpawnCount);
+        earthSpawnRadius = Mathf.Max(0f, earthSpawnRadius);
+        fireLoopVolume = Mathf.Max(0f, fireLoopVolume);
+        earthLoopVolume = Mathf.Max(0f, earthLoopVolume);
+        waterLoopVolume = Mathf.Max(0f, waterLoopVolume);
+        windLoopVolume = Mathf.Max(0f, windLoopVolume);
     }
 }
