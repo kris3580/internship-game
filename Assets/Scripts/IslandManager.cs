@@ -39,6 +39,7 @@ public class IslandManager : MonoBehaviour
 
     public event Action<IReadOnlyList<GameObject>> IslandCleared;
     public event Action<int> ComboChanged;
+    public event Action<Vector3, bool, int> BallPopped;
 
     private void Awake()
     {
@@ -96,6 +97,7 @@ public class IslandManager : MonoBehaviour
             return;
 
         audioService?.PlayBallDisappear(ball.transform.position, 0);
+        BallPopped?.Invoke(ball.transform.position, false, Mathf.Max(1, comboCount));
         clearingBalls.Remove(ball);
         ballRegistry?.Unregister(ball);
         DespawnBall(ball);
@@ -493,6 +495,8 @@ public class IslandManager : MonoBehaviour
                     continue;
 
                 audioService?.PlayBallDisappear(member.transform.position, noteIndex);
+                bool isFinalPopInIsland = noteIndex == island.Count - 1;
+                BallPopped?.Invoke(member.transform.position, isFinalPopInIsland, Mathf.Max(1, comboCount));
                 clearingBalls.Remove(member);
                 ballRegistry?.Unregister(member);
                 DespawnBall(member);

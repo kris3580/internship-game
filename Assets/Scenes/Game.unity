@@ -470,7 +470,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GameScoreManager
   scoreText: {fileID: 40664892}
   islandManager: {fileID: 1243469306}
-  pointsPerBall: 1
+  moneyPopUpCanvasPrefab: {fileID: 135873682779915836, guid: f5010db9e8fdcad459f5e30ed07f0244, type: 3}
+  moneyPopUpParent: {fileID: 0}
+  moneyPopUpLifetime: 1.2
+  moneyPopUpAnchoredX: 0.5
 --- !u!1 &42806184
 GameObject:
   m_ObjectHideFlags: 0
@@ -6125,9 +6128,10 @@ MonoBehaviour:
   poolStick: {fileID: 1661707370}
   poolStickOffset: {x: -0.15, y: 0.73, z: -0.03}
   poolAnimator: {fileID: 284716216}
+  startAnimator: {fileID: 635967703}
   hitAnimationStateName: Hit
-  startAnimationStateName: PoolStickStartAnimation
-  startAnimationLockSeconds: 1.25
+  startAnimationStateName: PoolStickStartGame
+  startAnimationLockSeconds: 6.5
   dropDelay: 0.15
   dropImpulse: {x: 0, y: -10, z: 0}
   dropImpulseMode: 1
@@ -6135,6 +6139,7 @@ MonoBehaviour:
   audioManager: {fileID: 1757287843}
   minZ: -3.9
   maxZ: 3.67
+  placementSensitivity: 1.4
   nextHitDelay: 0.1
   spawnOnStart: 1
   blockPlacementOverUi: 1
@@ -6469,6 +6474,7 @@ MonoBehaviour:
   openButton: {fileID: 1390067635}
   resumeGameButton: {fileID: 2038039000}
   pauseGameWhenOpen: 1
+  maxProgressBarWidth: 260
   balls:
   - tag: 2
     fatePoints: 2
@@ -6541,7 +6547,7 @@ MonoBehaviour:
     closestIslandNeed: 0
     effectiveWeight: 0
   minimumFatePoints: 1
-  randomBallJoinDestructionCounts: 00000000000000000000000000000000010000000200000003000000
+  randomBallJoinDestructionCounts: 000000000000000000000000050000000f0000001e0000002d000000
   useSubtleIslandBias: 1
   islandBiasNeedThreshold: 2
   immediateIslandChance: 0.282
@@ -6551,8 +6557,8 @@ MonoBehaviour:
   likelihoodReport: []
   enableModifierBalls: 1
   modifierBallsAfterSentCount: 20
-  modifierBallMinSentGap: 7
-  modifierBallMaxSentGap: 14
+  modifierBallMinSentGap: 10
+  modifierBallMaxSentGap: 18
   newBallJoinAnimator: {fileID: 0}
   newBallJoinAnimationStateName: NewBallText
   newBallJoinSmallImage: {fileID: 1536191366}
@@ -14296,7 +14302,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -819, y: 17}
+  m_AnchoredPosition: {x: -819, y: -139}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!95 &1771644768

@@ -17,9 +17,10 @@ public class BallPlacer : MonoBehaviour
     [SerializeField] private Transform poolStick;
     [SerializeField] private Vector3 poolStickOffset = new(-0.15f, 0.73f, -0.03f);
     [SerializeField] private Animator poolAnimator;
+    [SerializeField] private Animator startAnimator;
     [SerializeField] private string hitAnimationStateName = "Hit";
-    [SerializeField] private string startAnimationStateName = "PoolStickStartAnimation";
-    [SerializeField] private float startAnimationLockSeconds = 1.25f;
+    [SerializeField] private string startAnimationStateName = "PoolStickStartGame";
+    [SerializeField] private float startAnimationLockSeconds = 3.067f;
     [SerializeField] private float dropDelay = 0.15f;
     [SerializeField] private Vector3 dropImpulse = new(0f, -1.5f, 0f);
     [SerializeField] private ForceMode dropImpulseMode = ForceMode.Impulse;
@@ -27,6 +28,7 @@ public class BallPlacer : MonoBehaviour
     [SerializeField] private GameAudioManager audioManager;
     [SerializeField] private float minZ = -4.5f;
     [SerializeField] private float maxZ = 4.5f;
+    [SerializeField] private float placementSensitivity = 1f;
     [FormerlySerializedAs("nextBallDelay")]
     [SerializeField] private float nextHitDelay = 0.35f;
     [SerializeField] private bool spawnOnStart = true;
@@ -50,6 +52,7 @@ public class BallPlacer : MonoBehaviour
     private bool mouseStartedOverUi;
     private bool suppressDropUntilPointerReleased;
     private bool startAnimationActive;
+    private float startAnimationUnlockTime;
     private int uiBlockedFingerId = -1;
     private IAudioService audioService;
     [InjectOptional] private IAudioService injectedAudioService;
@@ -75,15 +78,23 @@ public class BallPlacer : MonoBehaviour
         ballFactory?.RegisterPrefabs(ballPrefabs);
         fatePointsManager = FindFirstObjectByType<FatePointsManager>();
 
+        if (startAnimator == null)
+            startAnimator = FindAnimatorByName("StartGameAnimation");
+
+        if (spawnOnStart && startAnimationLockSeconds > 0f)
+        {
+            startAnimationActive = true;
+            startAnimationUnlockTime = Time.realtimeSinceStartup + startAnimationLockSeconds;
+        }
+
         EnsureEventSystem();
     }
 
     private void Start()
     {
-        if (startAnimationLockSeconds > 0f && poolAnimator != null && !string.IsNullOrWhiteSpace(startAnimationStateName))
+        if (startAnimationActive)
         {
-            startAnimationActive = true;
-            poolAnimator.Play(startAnimationStateName, 0, 0f);
+            PlayStartAnimation();
             StartCoroutine(ReleaseStartAnimationLock());
             return;
         }
@@ -94,7 +105,7 @@ public class BallPlacer : MonoBehaviour
 
     private void Update()
     {
-        if (startAnimationActive || pendingBall == null || dropQueued || (gameStateMachine != null && !gameStateMachine.IsPlaying))
+        if (IsStartAnimationLocked() || pendingBall == null || dropQueued || (gameStateMachine != null && !gameStateMachine.IsPlaying))
             return;
 
         bool shouldDrop = false;
@@ -124,7 +135,7 @@ public class BallPlacer : MonoBehaviour
     /// </summary>
     public void SpawnNextBall()
     {
-        if (startAnimationActive)
+        if (IsStartAnimationLocked())
             return;
 
         if (pendingBall != null)
@@ -303,7 +314,7 @@ public class BallPlacer : MonoBehaviour
 
     private void MovePoolStickWithPendingBall()
     {
-        if (startAnimationActive || poolStick == null || pendingBall == null)
+        if (IsStartAnimationLocked() || poolStick == null || pendingBall == null)
             return;
 
         MovePoolStickTo(pendingBall.transform.position);
@@ -319,7 +330,7 @@ public class BallPlacer : MonoBehaviour
 
     private void MovePoolStickTo(Vector3 ballPosition)
     {
-        if (startAnimationActive || poolStick == null)
+        if (IsStartAnimationLocked() || poolStick == null)
             return;
 
         poolStick.position = ballPosition + poolStickOffset;
@@ -347,7 +358,7 @@ public class BallPlacer : MonoBehaviour
 
     public bool QueuePowerUp(string powerUpTag, Action onReleased = null)
     {
-        if (string.IsNullOrWhiteSpace(powerUpTag) || dropQueued || !string.IsNullOrWhiteSpace(queuedPowerUpTag))
+        if (IsStartAnimationLocked() || string.IsNullOrWhiteSpace(powerUpTag) || dropQueued || !string.IsNullOrWhiteSpace(queuedPowerUpTag))
             return false;
 
         if (pendingBall != null)
@@ -483,7 +494,8 @@ public class BallPlacer : MonoBehaviour
         if (Screen.width <= 0)
             return currentSpawnZ;
 
-        float screenPercent = Mathf.Clamp01(screenPosition.x / Screen.width);
+        float centeredScreenPercent = screenPosition.x / Screen.width - 0.5f;
+        float screenPercent = Mathf.Clamp01(centeredScreenPercent * placementSensitivity + 0.5f);
         return Mathf.Lerp(minZ, maxZ, screenPercent);
     }
 
@@ -528,11 +540,41 @@ public class BallPlacer : MonoBehaviour
 
     private IEnumerator ReleaseStartAnimationLock()
     {
-        yield return new WaitForSeconds(startAnimationLockSeconds);
+        float remainingSeconds = Mathf.Max(0f, startAnimationUnlockTime - Time.realtimeSinceStartup);
+
+        if (remainingSeconds > 0f)
+            yield return new WaitForSecondsRealtime(remainingSeconds);
+
         startAnimationActive = false;
 
         if (spawnOnStart)
             SpawnNextBall();
+    }
+
+    private bool IsStartAnimationLocked()
+    {
+        if (!startAnimationActive)
+            return false;
+
+        if (Time.realtimeSinceStartup < startAnimationUnlockTime)
+            return true;
+
+        startAnimationActive = false;
+        return false;
+    }
+
+    private void PlayStartAnimation()
+    {
+        if (startAnimator == null || string.IsNullOrWhiteSpace(startAnimationStateName))
+            return;
+
+        startAnimator.Play(startAnimationStateName, 0, 0f);
+    }
+
+    private Animator FindAnimatorByName(string objectName)
+    {
+        GameObject found = GameObject.Find(objectName);
+        return found != null ? found.GetComponent<Animator>() : null;
     }
 
     private IEnumerator DropAfterDelay()
@@ -552,6 +594,7 @@ public class BallPlacer : MonoBehaviour
 
         nextHitDelay = Mathf.Max(0f, nextHitDelay);
         startAnimationLockSeconds = Mathf.Max(0f, startAnimationLockSeconds);
+        placementSensitivity = Mathf.Max(0.01f, placementSensitivity);
         dropDelay = Mathf.Max(0f, dropDelay);
         particleLingerSeconds = Mathf.Max(0f, particleLingerSeconds);
         spawnPosition.x = 0f;

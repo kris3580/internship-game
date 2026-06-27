@@ -32,6 +32,7 @@ public sealed class FatePointsManager : MonoBehaviour
     [SerializeField] private Button openButton;
     [SerializeField] private Button resumeGameButton;
     [SerializeField] private bool pauseGameWhenOpen = true;
+    [SerializeField] private float maxProgressBarWidth = 260f;
 
     [Header("Rotation")]
     [SerializeField] private List<FateBall> balls = new()
@@ -327,12 +328,12 @@ public sealed class FatePointsManager : MonoBehaviour
         RebuildLookup();
         RefreshIslandBias();
 
-        float totalFatePoints = 0f;
+        int highestFatePoints = 0;
 
         foreach (FateBall ball in balls)
         {
             if (ball.inRotation)
-                totalFatePoints += Mathf.Max(minimumFatePoints, ball.fatePoints);
+                highestFatePoints = Mathf.Max(highestFatePoints, Mathf.Max(minimumFatePoints, ball.fatePoints));
         }
 
         foreach (FateBall ball in balls)
@@ -350,9 +351,9 @@ public sealed class FatePointsManager : MonoBehaviour
 
             if (ball.progressBar != null)
             {
-                float ratio = totalFatePoints > 0f ? ball.fatePoints / totalFatePoints : 0f;
+                float ratio = highestFatePoints > 0 ? (float)ball.fatePoints / highestFatePoints : 0f;
                 Vector2 size = ball.progressBar.sizeDelta;
-                size.x = Mathf.Max(1f, ball.fullProgressWidth * ratio);
+                size.x = Mathf.Max(1f, maxProgressBarWidth * ratio);
                 ball.progressBar.sizeDelta = size;
             }
         }
@@ -692,6 +693,7 @@ public sealed class FatePointsManager : MonoBehaviour
     private void OnValidate()
     {
         minimumFatePoints = Mathf.Max(1, minimumFatePoints);
+        maxProgressBarWidth = Mathf.Max(1f, maxProgressBarWidth);
         modifierBallsAfterSentCount = Mathf.Max(0, modifierBallsAfterSentCount);
         modifierBallMinSentGap = Mathf.Max(1, modifierBallMinSentGap);
         modifierBallMaxSentGap = Mathf.Max(modifierBallMinSentGap, modifierBallMaxSentGap);
