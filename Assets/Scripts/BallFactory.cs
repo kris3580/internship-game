@@ -50,6 +50,7 @@ public sealed class BallFactory : IBallFactory
         ballTransform.SetPositionAndRotation(position, rotation);
         ball.SetActive(true);
         ResetPhysics(ball);
+        BallSkinUtility.ApplySelectedBallMaterial(ball);
 
         return ball;
     }

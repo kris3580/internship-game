@@ -24,6 +24,7 @@ public class LoseLineGameOver : MonoBehaviour
     [InjectOptional] private IGameStateMachine gameStateMachine;
     private float nextCheckTime;
     private bool gameOverLogged;
+    private bool rewardGranted;
 
     private float Height => transform.position.y + heightOffset;
 
@@ -151,7 +152,15 @@ public class LoseLineGameOver : MonoBehaviour
         ResolveReferences();
 
         if (moneyCountText != null)
-            moneyCountText.text = scoreManager != null ? scoreManager.Destructions.ToString() : "0";
+            moneyCountText.text = scoreManager != null ? scoreManager.Score.ToString() : "0";
+
+        if (!rewardGranted)
+        {
+            rewardGranted = true;
+            int reward = scoreManager != null ? scoreManager.Score : 0;
+            MetaGameSave.SoftCurrency += reward;
+            MetaGameSave.BestScore = reward;
+        }
 
         if (gameOverObject != null)
             gameOverObject.SetActive(true);

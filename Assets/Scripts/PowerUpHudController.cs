@@ -11,6 +11,7 @@ public class PowerUpHudController : MonoBehaviour
     [SerializeField] private GameObject waterPrefab;
     [SerializeField] private GameObject windPrefab;
     [SerializeField] private int startingCount = 100;
+    [SerializeField] private int perGameUseLimit = 3;
 
     [InjectOptional] private IBallFactory ballFactory;
     [InjectOptional] private ISaveSystem saveSystem;
@@ -27,10 +28,10 @@ public class PowerUpHudController : MonoBehaviour
 
         ballFactory?.RegisterPrefabs(firePrefab, earthPrefab, waterPrefab, windPrefab);
 
-        fire = new PowerUpSlot("PowerUpFireButton", "fire", LoadCount("fire"));
-        earth = new PowerUpSlot("PowerUpEarthButton", "earth", LoadCount("earth"));
-        water = new PowerUpSlot("PowerUpWaterButton", "water", LoadCount("water"));
-        wind = new PowerUpSlot("PowerUpWindButton", "wind", LoadCount("wind"));
+        fire = new PowerUpSlot("PowerUpFireButton", "fire", LoadCount("fire"), perGameUseLimit);
+        earth = new PowerUpSlot("PowerUpEarthButton", "earth", LoadCount("earth"), perGameUseLimit);
+        water = new PowerUpSlot("PowerUpWaterButton", "water", LoadCount("water"), perGameUseLimit);
+        wind = new PowerUpSlot("PowerUpWindButton", "wind", LoadCount("wind"), perGameUseLimit);
 
         Bind(fire);
         Bind(earth);
@@ -69,7 +70,7 @@ public class PowerUpHudController : MonoBehaviour
 
     private void TryUse(PowerUpSlot slot)
     {
-        if (slot.Count <= 0 || ballPlacer == null)
+        if (slot.Count <= 0 || slot.AvailableThisGame <= 0 || ballPlacer == null)
             return;
 
         if (!ballPlacer.QueuePowerUp(slot.BallTag, () => Spend(slot)))
@@ -79,6 +80,7 @@ public class PowerUpHudController : MonoBehaviour
     private void Spend(PowerUpSlot slot)
     {
         slot.Count = Mathf.Max(0, slot.Count - 1);
+        slot.AvailableThisGame = Mathf.Max(0, slot.AvailableThisGame - 1);
         SaveCount(slot);
         slot.Refresh();
     }
@@ -86,16 +88,18 @@ public class PowerUpHudController : MonoBehaviour
     private int LoadCount(string ballTag)
     {
         string key = GetSaveKey(ballTag);
-        return saveSystem != null ? saveSystem.GetInt(key, startingCount) : startingCount;
+        return saveSystem != null ? saveSystem.GetInt(key, startingCount) : MetaGameSave.GetPowerUpCount(ballTag);
     }
 
     private void SaveCount(PowerUpSlot slot)
     {
-        if (saveSystem == null)
-            return;
+        if (saveSystem != null)
+        {
+            saveSystem.SetInt(GetSaveKey(slot.BallTag), slot.Count);
+            saveSystem.Save();
+        }
 
-        saveSystem.SetInt(GetSaveKey(slot.BallTag), slot.Count);
-        saveSystem.Save();
+        MetaGameSave.SetPowerUpCount(slot.BallTag, slot.Count);
     }
 
     private string GetSaveKey(string ballTag)
@@ -106,10 +110,11 @@ public class PowerUpHudController : MonoBehaviour
     [System.Serializable]
     private sealed class PowerUpSlot
     {
-        public PowerUpSlot(string buttonName, string ballTag, int count)
+        public PowerUpSlot(string buttonName, string ballTag, int count, int perGameLimit)
         {
             BallTag = ballTag;
             Count = count;
+            AvailableThisGame = Mathf.Min(Mathf.Max(0, perGameLimit), Count);
 
             GameObject buttonObject = GameObject.Find(buttonName);
             Button = buttonObject != null ? buttonObject.GetComponent<Button>() : null;
@@ -120,14 +125,21 @@ public class PowerUpHudController : MonoBehaviour
         public TMP_Text CountText { get; }
         public string BallTag { get; }
         public int Count { get; set; }
+        public int AvailableThisGame { get; set; }
 
         public void Refresh()
         {
             if (CountText != null)
-                CountText.text = Count.ToString();
+                CountText.text = $"{AvailableThisGame}({Count})";
 
             if (Button != null)
-                Button.interactable = Count > 0;
+                Button.interactable = Count > 0 && AvailableThisGame > 0;
         }
+    }
+
+    private void OnValidate()
+    {
+        startingCount = Mathf.Max(0, startingCount);
+        perGameUseLimit = Mathf.Max(0, perGameUseLimit);
     }
 }

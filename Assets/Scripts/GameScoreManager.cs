@@ -1,9 +1,13 @@
-using System.Collections.Generic;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public class GameScoreManager : MonoBehaviour
 {
@@ -13,11 +17,16 @@ public class GameScoreManager : MonoBehaviour
     [SerializeField] private Transform moneyPopUpParent;
     [SerializeField] private float moneyPopUpLifetime = 1.2f;
     [SerializeField] private float moneyPopUpAnchoredX = 0.5f;
+    [SerializeField] private GameObject popBallParticlePrefab;
+    [SerializeField] private BallPopColorPalette popColorPalette;
+    [SerializeField] private float popParticleLifetime = 4f;
 
     private int score;
     private int destructions;
     private readonly Queue<GameObject> moneyPopUpPool = new();
+    private readonly Queue<GameObject> popParticlePool = new();
 
+    public int Score => score;
     public int Destructions => destructions;
     public event Action<int> DestructionsChanged;
 
@@ -29,6 +38,7 @@ public class GameScoreManager : MonoBehaviour
         if (islandManager == null)
             islandManager = FindFirstObjectByType<IslandManager>();
 
+        LoadOptionalAssets();
         RefreshText();
     }
 
@@ -57,11 +67,16 @@ public class GameScoreManager : MonoBehaviour
         RefreshText();
     }
 
-    private void OnBallPopped(Vector3 popPosition, bool causedDestruction, int comboCount)
+    private void OnBallPopped(Vector3 popPosition, bool isFinalDestructionPop, int comboCount, string ballTag)
     {
-        int amount = Mathf.Max(1, comboCount) + (causedDestruction ? 1 : 0);
+        int comboMultiplier = Mathf.Max(1, comboCount);
+        int amount = comboMultiplier + (isFinalDestructionPop ? 1 : 0);
         score += amount;
-        ShowMoneyPopUp(amount, popPosition);
+        MetaGameSave.BestScore = score;
+
+        Color popColor = GetPopColor(ballTag);
+        ShowMoneyPopUp(amount, popPosition, popColor);
+        ShowPopParticle(popPosition, popColor);
         RefreshText();
     }
 
@@ -77,7 +92,7 @@ public class GameScoreManager : MonoBehaviour
         return found != null ? found.GetComponent<TMP_Text>() : null;
     }
 
-    private void ShowMoneyPopUp(int amount, Vector3 popPosition)
+    private void ShowMoneyPopUp(int amount, Vector3 popPosition, Color popColor)
     {
         if (moneyPopUpCanvasPrefab == null)
             return;
@@ -104,7 +119,13 @@ public class GameScoreManager : MonoBehaviour
         TMP_Text text = instance.GetComponentInChildren<TMP_Text>(true);
 
         if (text != null)
+        {
             text.text = $"+{amount}";
+            text.color = popColor;
+        }
+
+        foreach (Image image in instance.GetComponentsInChildren<Image>(true))
+            image.color = popColor;
 
         instance.SetActive(true);
 
@@ -114,6 +135,26 @@ public class GameScoreManager : MonoBehaviour
             animator.Play(0, 0, 0f);
 
         StartCoroutine(ReturnMoneyPopUpAfterDelay(instance));
+    }
+
+    private void ShowPopParticle(Vector3 popPosition, Color popColor)
+    {
+        if (popBallParticlePrefab == null)
+            return;
+
+        GameObject instance = GetPopParticle();
+        instance.transform.SetPositionAndRotation(popPosition, Quaternion.identity);
+        instance.SetActive(true);
+
+        foreach (ParticleSystem particle in instance.GetComponentsInChildren<ParticleSystem>(true))
+        {
+            ParticleSystem.MainModule main = particle.main;
+            main.startColor = popColor;
+            particle.Clear(true);
+            particle.Play(true);
+        }
+
+        StartCoroutine(ReturnPopParticleAfterDelay(instance));
     }
 
     private GameObject GetMoneyPopUp()
@@ -129,6 +170,19 @@ public class GameScoreManager : MonoBehaviour
         return Instantiate(moneyPopUpCanvasPrefab, moneyPopUpParent);
     }
 
+    private GameObject GetPopParticle()
+    {
+        while (popParticlePool.Count > 0)
+        {
+            GameObject pooled = popParticlePool.Dequeue();
+
+            if (pooled != null)
+                return pooled;
+        }
+
+        return Instantiate(popBallParticlePrefab);
+    }
+
     private IEnumerator ReturnMoneyPopUpAfterDelay(GameObject instance)
     {
         yield return new WaitForSeconds(moneyPopUpLifetime);
@@ -140,8 +194,39 @@ public class GameScoreManager : MonoBehaviour
         moneyPopUpPool.Enqueue(instance);
     }
 
+    private IEnumerator ReturnPopParticleAfterDelay(GameObject instance)
+    {
+        yield return new WaitForSeconds(popParticleLifetime);
+
+        if (instance == null)
+            yield break;
+
+        instance.SetActive(false);
+        popParticlePool.Enqueue(instance);
+    }
+
+    private Color GetPopColor(string ballTag)
+    {
+        if (popColorPalette == null)
+            return Color.white;
+
+        return popColorPalette.GetColor(BallSkinUtility.GetCurrentSkinIndex(), ballTag);
+    }
+
+    private void LoadOptionalAssets()
+    {
+#if UNITY_EDITOR
+        if (popBallParticlePrefab == null)
+            popBallParticlePrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Particles/PopBallParticle.prefab");
+
+        if (popColorPalette == null)
+            popColorPalette = AssetDatabase.LoadAssetAtPath<BallPopColorPalette>("Assets/Settings/BallPopColorPalette.asset");
+#endif
+    }
+
     private void OnValidate()
     {
         moneyPopUpLifetime = Mathf.Max(0.01f, moneyPopUpLifetime);
+        popParticleLifetime = Mathf.Max(0.01f, popParticleLifetime);
     }
 }

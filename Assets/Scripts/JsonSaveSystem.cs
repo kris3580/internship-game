@@ -14,10 +14,10 @@ public sealed class JsonSaveSystem : ISaveSystem
     private sealed class Entry
     {
         public string key;
-        public int value;
+        public string value;
     }
 
-    private readonly Dictionary<string, int> values = new();
+    private readonly Dictionary<string, string> values = new();
     private readonly string path;
     private bool loaded;
 
@@ -35,13 +35,41 @@ public sealed class JsonSaveSystem : ISaveSystem
     public int GetInt(string key, int defaultValue = 0)
     {
         EnsureLoaded();
-        return values.TryGetValue(key, out int value) ? value : defaultValue;
+        return values.TryGetValue(key, out string value) && int.TryParse(value, out int parsed)
+            ? parsed
+            : defaultValue;
     }
 
     public void SetInt(string key, int value)
     {
         EnsureLoaded();
-        values[key] = value;
+        values[key] = value.ToString();
+    }
+
+    public long GetLong(string key, long defaultValue = 0L)
+    {
+        EnsureLoaded();
+        return values.TryGetValue(key, out string value) && long.TryParse(value, out long parsed)
+            ? parsed
+            : defaultValue;
+    }
+
+    public void SetLong(string key, long value)
+    {
+        EnsureLoaded();
+        values[key] = value.ToString();
+    }
+
+    public string GetString(string key, string defaultValue = "")
+    {
+        EnsureLoaded();
+        return values.TryGetValue(key, out string value) ? value : defaultValue;
+    }
+
+    public void SetString(string key, string value)
+    {
+        EnsureLoaded();
+        values[key] = value ?? string.Empty;
     }
 
     public void DeleteKey(string key)
@@ -56,7 +84,7 @@ public sealed class JsonSaveSystem : ISaveSystem
 
         SaveData data = new();
 
-        foreach (KeyValuePair<string, int> pair in values)
+        foreach (KeyValuePair<string, string> pair in values)
             data.entries.Add(new Entry { key = pair.Key, value = pair.Value });
 
         File.WriteAllText(path, JsonUtility.ToJson(data, true));
