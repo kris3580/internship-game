@@ -352,7 +352,7 @@ public sealed class MetaGameSceneController : MonoBehaviour
             else if (path.Contains("LeaderBoardElementYou", StringComparison.OrdinalIgnoreCase) && text.name == "Score")
                 text.text = MetaGameSave.FormatCompact(MetaGameSave.BestScore);
             else if (text.name == "LanguageText")
-                text.text = MetaGameLocalization.CurrentLanguageLabel;
+                MetaGameLocalization.ApplyLanguageLabel(text);
             else if (text.name == "CurrentPowerupCount" || text.name == "CountText")
                 RefreshShopPowerUpCount(text, path);
         }
@@ -603,8 +603,7 @@ public sealed class MetaGameSceneController : MonoBehaviour
 
         TMP_Text text = button.GetComponentInChildren<TMP_Text>(true);
 
-        if (text != null)
-            text.text = MetaGameLocalization.CurrentLanguageLabel;
+        MetaGameLocalization.ApplyLanguageLabel(text);
     }
 
     private TimeSpan GetLoopTimer(string saveKey, TimeSpan duration)

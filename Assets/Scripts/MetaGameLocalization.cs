@@ -38,6 +38,7 @@ public static class MetaGameLocalization
 
     private static readonly Dictionary<string, Dictionary<string, string>> Translations = BuildTranslations();
     private static readonly Dictionary<TMP_Text, string> OriginalTexts = new();
+    private static readonly Dictionary<TMP_Text, TMP_FontAsset> OriginalFonts = new();
 
     public static string CurrentLanguage
     {
@@ -65,9 +66,7 @@ public static class MetaGameLocalization
                 ? value
                 : "English";
 
-            return MetaGameFontFallbacks.CanRender(TMP_Settings.defaultFontAsset, label)
-                ? label
-                : "English";
+            return label;
         }
     }
 
@@ -78,6 +77,23 @@ public static class MetaGameLocalization
         MetaGameSave.SaveSystem.SetString(MetaGameSaveKeys.Language, LanguageCodes[index]);
         MetaGameSave.SaveSystem.Save();
         Apply();
+    }
+
+    public static void ApplyLanguageLabel(TMP_Text text)
+    {
+        if (text == null)
+            return;
+
+        if (!OriginalFonts.ContainsKey(text))
+            OriginalFonts[text] = text.font;
+
+        string label = CurrentLanguageLabel;
+        TMP_FontAsset font = MetaGameFontFallbacks.GetFontForLanguage(CurrentLanguage, GetOriginalFont(text), label);
+
+        if (font != null)
+            text.font = font;
+
+        text.text = label;
     }
 
     public static string Translate(string english)
@@ -98,10 +114,19 @@ public static class MetaGameLocalization
     {
         string translated = Translate(english);
 
-        if (text == null || MetaGameFontFallbacks.CanRender(text.font, translated))
+        if (text == null)
             return translated;
 
-        return english;
+        TMP_FontAsset font = MetaGameFontFallbacks.GetFontForLanguage(CurrentLanguage, GetOriginalFont(text), translated);
+
+        if (font != null)
+        {
+            text.font = font;
+            return translated;
+        }
+
+        text.font = GetOriginalFont(text);
+        return translated;
     }
 
     public static string TranslateFormatForFont(TMP_Text text, string englishFormat, params object[] args)
@@ -125,11 +150,33 @@ public static class MetaGameLocalization
             if (!OriginalTexts.ContainsKey(text))
                 OriginalTexts[text] = StripRichText(text.text);
 
+            if (!OriginalFonts.ContainsKey(text))
+                OriginalFonts[text] = text.font;
+
             string original = OriginalTexts[text];
             string next = dictionary != null ? TranslateOriginal(original, dictionary) : original;
+            TMP_FontAsset originalFont = GetOriginalFont(text);
+            TMP_FontAsset nextFont = MetaGameFontFallbacks.GetFontForLanguage(language, originalFont, next);
 
-            text.text = MetaGameFontFallbacks.CanRender(text.font, next) ? next : original;
+            if (nextFont != null)
+            {
+                text.font = nextFont;
+                text.text = next;
+            }
+            else
+            {
+                text.font = originalFont;
+                text.text = next;
+            }
         }
+    }
+
+    private static TMP_FontAsset GetOriginalFont(TMP_Text text)
+    {
+        if (text != null && OriginalFonts.TryGetValue(text, out TMP_FontAsset font) && font != null)
+            return font;
+
+        return text != null ? text.font : TMP_Settings.defaultFontAsset;
     }
 
     private static string TranslateOriginal(string original, Dictionary<string, string> dictionary)
@@ -194,7 +241,87 @@ public static class MetaGameLocalization
         };
 
         AddExtra(values, code, leaderboards, buy, starterPack);
+        AddGameLabels(values, code);
         translations[code] = values;
+    }
+
+    private static void AddGameLabels(Dictionary<string, string> values, string code)
+    {
+        switch (code)
+        {
+            case "zh":
+                AddGameLabels(values, "\u4e0b\u4e00\u4e2a", "\u547d\u8fd0\u70b9\u6570\u5206\u914d", "\u63a7\u5236\u547d\u8fd0");
+                return;
+            case "hi":
+                AddGameLabels(values, "\u0905\u0917\u0932\u093e", "\u092d\u093e\u0917\u094d\u092f \u0905\u0902\u0915 \u0935\u093f\u0924\u0930\u0923", "\u092d\u093e\u0917\u094d\u092f \u0928\u093f\u092f\u0902\u0924\u094d\u0930\u093f\u0924 \u0915\u0930\u0947\u0902");
+                return;
+            case "es":
+                AddGameLabels(values, "Siguiente", "Distribuci\u00f3n de puntos de destino", "Controla el destino");
+                return;
+            case "ar":
+                AddGameLabels(values, "\u0627\u0644\u062a\u0627\u0644\u064a", "\u062a\u0648\u0632\u064a\u0639 \u0646\u0642\u0627\u0637 \u0627\u0644\u0642\u062f\u0631", "\u062a\u062d\u0643\u0645 \u0628\u0627\u0644\u0642\u062f\u0631");
+                return;
+            case "fr":
+                AddGameLabels(values, "Suivant", "R\u00e9partition des points de destin", "Contr\u00f4ler le destin");
+                return;
+            case "pt":
+                AddGameLabels(values, "Pr\u00f3ximo", "Distribui\u00e7\u00e3o de pontos de destino", "Controle o destino");
+                return;
+            case "ru":
+                AddGameLabels(values, "\u0414\u0430\u043b\u0435\u0435", "\u0420\u0430\u0441\u043f\u0440\u0435\u0434\u0435\u043b\u0435\u043d\u0438\u0435 \u043e\u0447\u043a\u043e\u0432 \u0441\u0443\u0434\u044c\u0431\u044b", "\u0423\u043f\u0440\u0430\u0432\u043b\u044f\u0439 \u0441\u0443\u0434\u044c\u0431\u043e\u0439");
+                return;
+            case "ja":
+                AddGameLabels(values, "\u6b21", "\u904b\u547d\u30dd\u30a4\u30f3\u30c8\u5206\u914d", "\u904b\u547d\u3092\u64cd\u308b");
+                return;
+            case "vi":
+                AddGameLabels(values, "Ti\u1ebfp theo", "Ph\u00e2n b\u1ed5 \u0111i\u1ec3m s\u1ed1 ph\u1eadn", "Ki\u1ec3m so\u00e1t s\u1ed1 ph\u1eadn");
+                return;
+            case "pl":
+                AddGameLabels(values, "Nast\u0119pne", "Podzia\u0142 punkt\u00f3w losu", "Kontroluj los");
+                return;
+            case "uk":
+                AddGameLabels(values, "\u0414\u0430\u043b\u0456", "\u0420\u043e\u0437\u043f\u043e\u0434\u0456\u043b \u043e\u0447\u043e\u043a \u0434\u043e\u043b\u0456", "\u041a\u0435\u0440\u0443\u0439 \u0434\u043e\u043b\u0435\u044e");
+                return;
+            case "fil":
+                AddGameLabels(values, "Susunod", "Pamamahagi ng Fate Points", "Kontrolin ang Tadhana");
+                return;
+            case "th":
+                AddGameLabels(values, "\u0e16\u0e31\u0e14\u0e44\u0e1b", "\u0e41\u0e08\u0e01\u0e41\u0e15\u0e49\u0e21\u0e0a\u0e30\u0e15\u0e32", "\u0e04\u0e27\u0e1a\u0e04\u0e38\u0e21\u0e0a\u0e30\u0e15\u0e32");
+                return;
+            case "de":
+                AddGameLabels(values, "Als N\u00e4chstes", "Verteilung der Schicksalspunkte", "Schicksal kontrollieren");
+                return;
+            case "it":
+                AddGameLabels(values, "Prossimo", "Distribuzione punti destino", "Controlla il destino");
+                return;
+            case "tr":
+                AddGameLabels(values, "S\u0131rada", "Kader puan\u0131 da\u011f\u0131l\u0131m\u0131", "Kaderi kontrol et");
+                return;
+            case "bn":
+                AddGameLabels(values, "\u09aa\u09b0\u09ac\u09b0\u09cd\u09a4\u09c0", "\u09ad\u09be\u0997\u09cd\u09af \u09aa\u09df\u09c7\u09a8\u09cd\u099f \u09ac\u09a3\u09cd\u099f\u09a8", "\u09ad\u09be\u0997\u09cd\u09af \u09a8\u09bf\u09df\u09a8\u09cd\u09a4\u09cd\u09b0\u09a3 \u0995\u09b0\u09c1\u09a8");
+                return;
+            case "ko":
+                AddGameLabels(values, "\ub2e4\uc74c", "\uc6b4\uba85 \ud3ec\uc778\ud2b8 \ubd84\ubc30", "\uc6b4\uba85\uc744 \uc870\uc885");
+                return;
+            case "ro":
+                AddGameLabels(values, "Urmeaz\u0103", "Distribu\u021bie puncte destin", "Controleaz\u0103 destinul");
+                return;
+            case "hu":
+                AddGameLabels(values, "K\u00f6vetkez\u0151", "Sorspontok eloszt\u00e1sa", "Ir\u00e1ny\u00edtsd a sorsot");
+                return;
+            default:
+                AddGameLabels(values, "Up Next", "Fate Points Distribution", "Control Fate");
+                return;
+        }
+    }
+
+    private static void AddGameLabels(Dictionary<string, string> values, string upNext, string fatePointsDistribution, string controlFate)
+    {
+        values["Up Next"] = upNext;
+        values["Up Next:"] = upNext + ":";
+        values["Fate Points Distribution"] = fatePointsDistribution;
+        values["Control Fate"] = controlFate;
+        values["Control Fate!!"] = controlFate + "!!";
     }
 
     private static void AddExtra(Dictionary<string, string> values, string code, string leaderboards, string buy, string starterPack)
