@@ -366,7 +366,7 @@ public class IslandManager : MonoBehaviour
             if (!comboText.gameObject.activeSelf)
                 comboText.gameObject.SetActive(true);
 
-            comboText.text = $"Combo!! x{count}";
+            comboText.text = MetaGameLocalization.TranslateFormatForFont(comboText, "Combo!! x{0}", count);
             comboText.color = UnityEngine.Random.ColorHSV(0f, 1f, 0.8f, 1f, 0.85f, 1f);
         }
 

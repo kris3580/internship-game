@@ -5,6 +5,8 @@ public static class MetaGameSave
 {
     private static ISaveSystem saveSystem;
 
+    public static event Action LivesChanged;
+
     public static ISaveSystem SaveSystem => saveSystem ??= new JsonSaveSystem();
 
     public static void EnsureCurrencyDefaults()
@@ -45,6 +47,7 @@ public static class MetaGameSave
         }
         set
         {
+            int previous = SaveSystem.GetInt(MetaGameSaveKeys.Lives, 3);
             int clamped = Mathf.Max(0, value);
             SetInt(MetaGameSaveKeys.Lives, clamped);
 
@@ -53,6 +56,9 @@ public static class MetaGameSave
 
             if (clamped >= 3)
                 SetLong(MetaGameSaveKeys.LastLifeTicks, 0L);
+
+            if (previous != clamped)
+                LivesChanged?.Invoke();
         }
     }
 
@@ -168,7 +174,8 @@ public static class MetaGameSave
 
     public static void RefillLives()
     {
-        int lives = SaveSystem.GetInt(MetaGameSaveKeys.Lives, 3);
+        int previous = SaveSystem.GetInt(MetaGameSaveKeys.Lives, 3);
+        int lives = previous;
 
         if (lives >= 3)
         {
@@ -193,6 +200,9 @@ public static class MetaGameSave
             SetLong(MetaGameSaveKeys.LastLifeTicks, 0L);
         else
             SetLong(MetaGameSaveKeys.LastLifeTicks, last.AddHours(gained).Ticks);
+
+        if (previous != lives)
+            LivesChanged?.Invoke();
     }
 
     public static string FormatCompact(int value)

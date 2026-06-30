@@ -474,6 +474,9 @@ MonoBehaviour:
   moneyPopUpParent: {fileID: 0}
   moneyPopUpLifetime: 1.2
   moneyPopUpAnchoredX: 0.5
+  popBallParticlePrefab: {fileID: 0}
+  popColorPalette: {fileID: 0}
+  popParticleLifetime: 4
 --- !u!1 &42806184
 GameObject:
   m_ObjectHideFlags: 0
@@ -6583,10 +6586,10 @@ MonoBehaviour:
     closestIslandNeed: 0
     effectiveWeight: 0
   minimumFatePoints: 1
-  randomBallJoinDestructionCounts: 000000000000000000000000050000000f0000001e0000002d000000
+  randomBallJoinDestructionCounts: 00000000000000000000000000000000070000001300000021000000
   useSubtleIslandBias: 1
   islandBiasNeedThreshold: 2
-  immediateIslandChance: 0.282
+  immediateIslandChance: 0.3
   oneAwayBonusWeight: 0.75
   twoAwayBonusWeight: 0.35
   mostLikelyBallPreview: 
@@ -13956,6 +13959,7 @@ MonoBehaviour:
   waterPrefab: {fileID: 3614112810464961032, guid: c0c708234f96c86489b38069c6ea8cc1, type: 3}
   windPrefab: {fileID: 4329584378171603819, guid: 7404bcfdf0dba3b4d904b3e41229e943, type: 3}
   startingCount: 100
+  perGameUseLimit: 3
 --- !u!1 &1714645798
 GameObject:
   m_ObjectHideFlags: 0

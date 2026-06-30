@@ -13,7 +13,7 @@ public sealed class AddressableSkinLoader : ISkinLoader
             return;
         }
 
-        AsyncOperationHandle<GameObject> handle = Addressables.InstantiateAsync(address, parent);
+        AsyncOperationHandle<GameObject> handle = Addressables.InstantiateAsync(address, parent, false);
         handle.Completed += operation =>
         {
             onLoaded?.Invoke(operation.Status == AsyncOperationStatus.Succeeded ? operation.Result : null);

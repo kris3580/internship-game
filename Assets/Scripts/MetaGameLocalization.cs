@@ -55,9 +55,21 @@ public static class MetaGameLocalization
         }
     }
 
-    public static string CurrentLanguageLabel => Labels.TryGetValue(CurrentLanguage, out string label)
-        ? label
-        : "English";
+    public static string CurrentLanguageLabel
+    {
+        get
+        {
+            MetaGameFontFallbacks.EnsureInstalled();
+
+            string label = Labels.TryGetValue(CurrentLanguage, out string value)
+                ? value
+                : "English";
+
+            return MetaGameFontFallbacks.CanRender(TMP_Settings.defaultFontAsset, label)
+                ? label
+                : "English";
+        }
+    }
 
     public static void CycleLanguage()
     {
@@ -68,8 +80,40 @@ public static class MetaGameLocalization
         Apply();
     }
 
+    public static string Translate(string english)
+    {
+        if (string.IsNullOrWhiteSpace(english))
+            return english;
+
+        string original = StripRichText(english);
+        string language = CurrentLanguage;
+
+        return Translations.TryGetValue(language, out Dictionary<string, string> dictionary)
+            && dictionary.TryGetValue(original, out string translated)
+                ? translated
+                : english;
+    }
+
+    public static string TranslateForFont(TMP_Text text, string english)
+    {
+        string translated = Translate(english);
+
+        if (text == null || MetaGameFontFallbacks.CanRender(text.font, translated))
+            return translated;
+
+        return english;
+    }
+
+    public static string TranslateFormatForFont(TMP_Text text, string englishFormat, params object[] args)
+    {
+        string format = TranslateForFont(text, englishFormat);
+        return string.Format(format, args);
+    }
+
     public static void Apply()
     {
+        MetaGameFontFallbacks.EnsureInstalled();
+
         string language = CurrentLanguage;
         Translations.TryGetValue(language, out Dictionary<string, string> dictionary);
 
@@ -82,12 +126,17 @@ public static class MetaGameLocalization
                 OriginalTexts[text] = StripRichText(text.text);
 
             string original = OriginalTexts[text];
+            string next = dictionary != null ? TranslateOriginal(original, dictionary) : original;
 
-            if (dictionary != null && dictionary.TryGetValue(original, out string translated))
-                text.text = translated;
-            else
-                text.text = original;
+            text.text = MetaGameFontFallbacks.CanRender(text.font, next) ? next : original;
         }
+    }
+
+    private static string TranslateOriginal(string original, Dictionary<string, string> dictionary)
+    {
+        return dictionary != null && dictionary.TryGetValue(original, out string translated)
+            ? translated
+            : original;
     }
 
     private static Dictionary<string, Dictionary<string, string>> BuildTranslations()
@@ -144,8 +193,93 @@ public static class MetaGameLocalization
             ["Pool Sticks"] = poolSticks
         };
 
-        values["Buy the Starter Pack to get the following:"] = buy + " " + starterPack;
+        AddExtra(values, code, leaderboards, buy, starterPack);
         translations[code] = values;
+    }
+
+    private static void AddExtra(Dictionary<string, string> values, string code, string leaderboards, string buy, string starterPack)
+    {
+        switch (code)
+        {
+            case "zh":
+                AddExtra(values, "\u6392\u884c\u699c", "\u8d2d\u4e70\u65b0\u624b\u793c\u5305\u4ee5\u83b7\u5f97\u4ee5\u4e0b\u5185\u5bb9:", "\u8fde\u51fb", "\u65b0\u7403\u52a0\u5165\u7403\u684c", "\u6682\u505c", "\u5df2\u6682\u505c", "\u6e38\u620f\u7ed3\u675f");
+                return;
+            case "hi":
+                AddExtra(values, "\u0932\u0940\u0921\u0930\u092c\u094b\u0930\u094d\u0921", "\u0938\u094d\u091f\u093e\u0930\u094d\u091f\u0930 \u092a\u0948\u0915 \u0916\u0930\u0940\u0926\u0947\u0902 \u0914\u0930 \u092f\u0947 \u092a\u093e\u090f\u0902:", "\u0915\u0949\u092e\u094d\u092c\u094b", "\u0928\u0908 \u0917\u0947\u0902\u0926 \u092c\u094b\u0930\u094d\u0921 \u092e\u0947\u0902 \u0936\u093e\u092e\u093f\u0932 \u0939\u0941\u0908", "\u0930\u094b\u0915\u0947\u0902", "\u0930\u0941\u0915\u093e \u0939\u0941\u0906", "\u0916\u0947\u0932 \u0916\u0924\u094d\u092e");
+                return;
+            case "es":
+                AddExtra(values, "Clasificaci\u00f3n", "Compra el paquete inicial para obtener lo siguiente:", "Combo", "Nueva bola se une al tablero", "Pausa", "En pausa", "Fin del juego");
+                return;
+            case "ar":
+                AddExtra(values, "\u0644\u0648\u062d\u0629 \u0627\u0644\u0635\u062f\u0627\u0631\u0629", "\u0627\u0634\u062a\u0631 \u062d\u0632\u0645\u0629 \u0627\u0644\u0628\u062f\u0621 \u0644\u062a\u062d\u0635\u0644 \u0639\u0644\u0649 \u0627\u0644\u062a\u0627\u0644\u064a:", "\u0643\u0648\u0645\u0628\u0648", "\u0643\u0631\u0629 \u062c\u062f\u064a\u062f\u0629 \u062a\u0646\u0636\u0645 \u0625\u0644\u0649 \u0627\u0644\u0644\u0648\u062d\u0629", "\u0625\u064a\u0642\u0627\u0641 \u0645\u0624\u0642\u062a", "\u0645\u062a\u0648\u0642\u0641 \u0645\u0624\u0642\u062a\u0627", "\u0627\u0646\u062a\u0647\u062a \u0627\u0644\u0644\u0639\u0628\u0629");
+                return;
+            case "fr":
+                AddExtra(values, "Classement", "Achetez le pack de d\u00e9part pour obtenir:", "Combo", "Une nouvelle boule rejoint le plateau", "Pause", "En pause", "Partie termin\u00e9e");
+                return;
+            case "pt":
+                AddExtra(values, "Classifica\u00e7\u00e3o", "Compre o pacote inicial para receber:", "Combo", "Nova bola entra no tabuleiro", "Pausa", "Pausado", "Fim de jogo");
+                return;
+            case "ru":
+                AddExtra(values, "\u0420\u0435\u0439\u0442\u0438\u043d\u0433", "\u041a\u0443\u043f\u0438\u0442\u0435 \u0441\u0442\u0430\u0440\u0442\u043e\u0432\u044b\u0439 \u043d\u0430\u0431\u043e\u0440, \u0447\u0442\u043e\u0431\u044b \u043f\u043e\u043b\u0443\u0447\u0438\u0442\u044c:", "\u041a\u043e\u043c\u0431\u043e", "\u041d\u043e\u0432\u044b\u0439 \u0448\u0430\u0440 \u043f\u043e\u044f\u0432\u043b\u044f\u0435\u0442\u0441\u044f \u043d\u0430 \u043f\u043e\u043b\u0435", "\u041f\u0430\u0443\u0437\u0430", "\u041f\u0430\u0443\u0437\u0430", "\u0418\u0433\u0440\u0430 \u043e\u043a\u043e\u043d\u0447\u0435\u043d\u0430");
+                return;
+            case "ja":
+                AddExtra(values, "\u30e9\u30f3\u30ad\u30f3\u30b0", "\u30b9\u30bf\u30fc\u30bf\u30fc\u30d1\u30c3\u30af\u3092\u8cfc\u5165\u3057\u3066\u4ee5\u4e0b\u3092\u5165\u624b:", "\u30b3\u30f3\u30dc", "\u65b0\u3057\u3044\u30dc\u30fc\u30eb\u304c\u30dc\u30fc\u30c9\u306b\u53c2\u52a0", "\u4e00\u6642\u505c\u6b62", "\u4e00\u6642\u505c\u6b62", "\u30b2\u30fc\u30e0\u30aa\u30fc\u30d0\u30fc");
+                return;
+            case "vi":
+                AddExtra(values, "B\u1ea3ng x\u1ebfp h\u1ea1ng", "Mua g\u00f3i kh\u1edfi \u0111\u1ea7u \u0111\u1ec3 nh\u1eadn:", "Combo", "B\u00f3ng m\u1edbi v\u00e0o b\u00e0n", "T\u1ea1m d\u1eebng", "T\u1ea1m d\u1eebng", "Tr\u00f2 ch\u01a1i k\u1ebft th\u00fac");
+                return;
+            case "pl":
+                AddExtra(values, "Ranking", "Kup pakiet startowy, aby otrzyma\u0107:", "Kombinacja", "Nowa bila do\u0142\u0105cza do sto\u0142u", "Pauza", "Pauza", "Koniec gry");
+                return;
+            case "uk":
+                AddExtra(values, "\u0420\u0435\u0439\u0442\u0438\u043d\u0433", "\u041a\u0443\u043f\u0456\u0442\u044c \u0441\u0442\u0430\u0440\u0442\u043e\u0432\u0438\u0439 \u043f\u0430\u043a\u0435\u0442, \u0449\u043e\u0431 \u043e\u0442\u0440\u0438\u043c\u0430\u0442\u0438:", "\u041a\u043e\u043c\u0431\u043e", "\u041d\u043e\u0432\u0430 \u043a\u0443\u043b\u044f \u0437'\u044f\u0432\u043b\u044f\u0454\u0442\u044c\u0441\u044f \u043d\u0430 \u043f\u043e\u043b\u0456", "\u041f\u0430\u0443\u0437\u0430", "\u041f\u0430\u0443\u0437\u0430", "\u0413\u0440\u0443 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u043e");
+                return;
+            case "fil":
+                AddExtra(values, "Leaderboard", "Bilhin ang Starter Pack para makuha ang mga ito:", "Combo", "May bagong bola sa board", "Pause", "Naka-pause", "Game Over");
+                return;
+            case "th":
+                AddExtra(values, "\u0e01\u0e23\u0e30\u0e14\u0e32\u0e19\u0e2d\u0e31\u0e19\u0e14\u0e31\u0e1a", "\u0e0b\u0e37\u0e49\u0e2d\u0e41\u0e1e\u0e47\u0e01\u0e40\u0e23\u0e34\u0e48\u0e21\u0e15\u0e49\u0e19\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e23\u0e31\u0e1a:", "\u0e04\u0e2d\u0e21\u0e42\u0e1a", "\u0e25\u0e39\u0e01\u0e43\u0e2b\u0e21\u0e48\u0e40\u0e02\u0e49\u0e32\u0e01\u0e23\u0e30\u0e14\u0e32\u0e19", "\u0e2b\u0e22\u0e38\u0e14\u0e0a\u0e31\u0e48\u0e27\u0e04\u0e23\u0e32\u0e27", "\u0e2b\u0e22\u0e38\u0e14\u0e0a\u0e31\u0e48\u0e27\u0e04\u0e23\u0e32\u0e27", "\u0e08\u0e1a\u0e40\u0e01\u0e21");
+                return;
+            case "de":
+                AddExtra(values, "Bestenliste", "Kaufe das Starterpaket, um Folgendes zu erhalten:", "Combo", "Neue Kugel kommt aufs Brett", "Pause", "Pausiert", "Spiel vorbei");
+                return;
+            case "it":
+                AddExtra(values, "Classifica", "Acquista il pacchetto iniziale per ottenere:", "Combo", "Nuova palla entra nel tavolo", "Pausa", "In pausa", "Fine partita");
+                return;
+            case "tr":
+                AddExtra(values, "Liderlik", "Ba\u015flang\u0131\u00e7 paketini al ve \u015funlar\u0131 kazan:", "Kombo", "Yeni top tahtaya kat\u0131ld\u0131", "Duraklat", "Duraklat\u0131ld\u0131", "Oyun bitti");
+                return;
+            case "bn":
+                AddExtra(values, "\u09b2\u09bf\u09a1\u09be\u09b0\u09ac\u09cb\u09b0\u09cd\u09a1", "\u09b8\u09cd\u099f\u09be\u09b0\u09cd\u099f\u09be\u09b0 \u09aa\u09cd\u09af\u09be\u0995 \u0995\u09bf\u09a8\u09c7 \u098f\u0997\u09c1\u09b2\u09cb \u09aa\u09be\u09a8:", "\u0995\u09ae\u09cd\u09ac\u09cb", "\u09a8\u09a4\u09c1\u09a8 \u09ac\u09b2 \u09ac\u09cb\u09b0\u09cd\u09a1\u09c7 \u09af\u09cb\u0997 \u09a6\u09bf\u09b2", "\u09ac\u09bf\u09b0\u09a4\u09bf", "\u09ac\u09bf\u09b0\u09a4\u09bf", "\u0996\u09c7\u09b2\u09be \u09b6\u09c7\u09b7");
+                return;
+            case "ko":
+                AddExtra(values, "\ub9ac\ub354\ubcf4\ub4dc", "\uc2a4\ud130\ud130 \ud329\uc744 \uad6c\ub9e4\ud558\uc5ec \ub2e4\uc74c\uc744 \ubc1b\uc73c\uc138\uc694:", "\ucf64\ubcf4", "\uc0c8 \uacf5\uc774 \ubcf4\ub4dc\uc5d0 \ud569\ub958", "\uc77c\uc2dc\uc815\uc9c0", "\uc77c\uc2dc\uc815\uc9c0", "\uac8c\uc784 \uc624\ubc84");
+                return;
+            case "ro":
+                AddExtra(values, "Clasament", "Cump\u0103r\u0103 pachetul de start pentru a primi:", "Combo", "O bil\u0103 nou\u0103 intr\u0103 pe tabl\u0103", "Pauz\u0103", "Pauz\u0103", "Sf\u00e2r\u0219it joc");
+                return;
+            case "hu":
+                AddExtra(values, "Ranglista", "Vedd meg a kezd\u0151 csomagot ez\u00e9rt:", "Komb\u00f3", "\u00daj goly\u00f3 \u00e9rkezik a t\u00e1bl\u00e1ra", "Sz\u00fcnet", "Sz\u00fcnetelve", "J\u00e1t\u00e9k v\u00e9ge");
+                return;
+            default:
+                AddExtra(values, leaderboards, buy + " " + starterPack, "Combo", "New Ball Joins The Board", "Pause", "Paused", "Game Over");
+                return;
+        }
+    }
+
+    private static void AddExtra(Dictionary<string, string> values, string leaderboard, string starterPackDescription, string combo, string newBallJoinsBoard, string pause, string paused, string gameOver)
+    {
+        values["Leaderboard"] = leaderboard;
+        values["Buy the Starter Pack to get the following:"] = starterPackDescription;
+        values["Buy the Starter Pack to get the following"] = starterPackDescription;
+        values["Combo"] = combo;
+        values["Combo x2"] = combo + " x2";
+        values["Combo x{0}"] = combo + " x{0}";
+        values["New Ball Joins The Board"] = newBallJoinsBoard;
+        values["A New Ball Joins The Board"] = newBallJoinsBoard;
+        values["Pause"] = pause;
+        values["Paused"] = paused;
+        values["Game Over"] = gameOver;
     }
 
     private static string StripRichText(string value)
@@ -160,16 +294,35 @@ public static class MetaGameLocalization
     private static bool IsDynamicText(TMP_Text text)
     {
         string name = text.name;
+        string path = GetPath(text.transform);
+
         return name == "Lives"
             || name == "TimerText"
             || name == "Score&DestructionsText"
             || name == "MoneyCountText"
             || name == "CurrentPowerupCount"
             || name == "CountText"
+            || name == "ComboText"
             || name == "PriceText"
             || name == "NextBallText"
-            || name.Contains("Score", StringComparison.OrdinalIgnoreCase)
+            || (name == "Score" && path.Contains("LeaderBoardElementYou", StringComparison.OrdinalIgnoreCase))
             || name.Contains("Count", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetPath(Transform transform)
+    {
+        if (transform == null)
+            return string.Empty;
+
+        string path = transform.name;
+
+        while (transform.parent != null)
+        {
+            transform = transform.parent;
+            path = transform.name + "/" + path;
+        }
+
+        return path;
     }
 
     private static string DetectSystemLanguage()

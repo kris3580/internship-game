@@ -7,18 +7,20 @@ using UnityEngine.UI;
 
 public sealed class MetaGameSceneController : MonoBehaviour
 {
-    [SerializeField] private Color menuColor = new(0.24f, 0.58f, 0.22f, 1f);
-    [SerializeField] private Color leaderboardColor = new(0.72f, 0.16f, 0.16f, 1f);
-    [SerializeField] private Color starterPackColor = new(0.18f, 0.34f, 0.78f, 1f);
-    [SerializeField] private Color shopColor = new(0.9f, 0.77f, 0.2f, 1f);
+    private const float FallbackBackgroundLerpSpeed = 7f;
+    private static readonly Color FallbackDefaultColor = Color.green;
+    private static readonly Color FallbackLeaderboardColor = Color.red;
+    private static readonly Color FallbackStarterPackColor = Color.blue;
+    private static readonly Color FallbackShopColor = Color.yellow;
+
+    [SerializeField] private MetaGameMenuBackgroundSettings backgroundSettings;
     [SerializeField] private Color activeTabColor = new(0.05f, 0.28f, 0.13f, 1f);
-    [SerializeField] private float backgroundLerpSpeed = 7f;
     [SerializeField] private float leaderboardTimerHours = 24f;
     [SerializeField] private float starterPackTimerHours = 12f;
 
     private readonly Dictionary<string, GameObject> panels = new();
     private readonly Dictionary<Button, Color> normalButtonColors = new();
-    private Image backgroundImage;
+    private Graphic backgroundGraphic;
     private Color targetBackgroundColor;
     private float nextSlowRefreshTime;
     private string activeShopTab = "PoolSticks";
@@ -26,21 +28,30 @@ public sealed class MetaGameSceneController : MonoBehaviour
     private void Awake()
     {
         DontDestroyOnLoad(gameObject);
+        MetaGameSave.LivesChanged += HandleLivesChanged;
         SceneManager.sceneLoaded += OnSceneLoaded;
         Rebuild();
     }
 
     private void OnDestroy()
     {
+        MetaGameSave.LivesChanged -= HandleLivesChanged;
         SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
     private void Update()
     {
-        if (backgroundImage != null)
-            backgroundImage.color = Color.Lerp(backgroundImage.color, targetBackgroundColor, Time.deltaTime * backgroundLerpSpeed);
-        else if (IsMenuScene())
-            backgroundImage = FindBackgroundImage();
+        if (IsMenuScene())
+        {
+            if (backgroundGraphic != null)
+                backgroundGraphic.color = Color.Lerp(backgroundGraphic.color, targetBackgroundColor, Time.deltaTime * GetBackgroundLerpSpeed());
+            else
+                backgroundGraphic = FindBackgroundGraphic();
+        }
+        else
+        {
+            backgroundGraphic = null;
+        }
 
         if (Time.unscaledTime >= nextSlowRefreshTime)
         {
@@ -55,14 +66,21 @@ public sealed class MetaGameSceneController : MonoBehaviour
         Rebuild();
     }
 
+    private void HandleLivesChanged()
+    {
+        RefreshDynamicText();
+        RefreshButtons();
+    }
+
     private void Rebuild()
     {
         panels.Clear();
         normalButtonColors.Clear();
 
         CachePanels();
-        backgroundImage = FindBackgroundImage();
-        targetBackgroundColor = menuColor;
+        ResolveBackgroundSettings();
+        backgroundGraphic = IsMenuScene() ? FindBackgroundGraphic() : null;
+        targetBackgroundColor = GetPanelBackgroundColor("MainMenu");
         HookButtons();
         OpenPanel(IsMenuScene() ? "MainMenu" : null);
         RefreshAll();
@@ -120,7 +138,7 @@ public sealed class MetaGameSceneController : MonoBehaviour
                 || name.Equals("Start", StringComparison.OrdinalIgnoreCase))
                 ReplaceClick(button, PlayGame);
             else if (name == "ButtonImage")
-                ReplaceClick(button, () => ShowShowcaseForButton(button));
+                ReplaceClick(button, () => HandleBuyElementImage(button));
             else if (name.StartsWith("Button", StringComparison.OrdinalIgnoreCase))
                 ReplaceClick(button, () => SelectShopTab(name.Replace("Button", string.Empty)));
             else if (name.Contains("Buy", StringComparison.OrdinalIgnoreCase)
@@ -161,7 +179,8 @@ public sealed class MetaGameSceneController : MonoBehaviour
         if (!MetaGameSave.TrySpendLife())
             return;
 
-        SceneManager.LoadScene("Game");
+        RefreshDynamicText();
+        LoadingScreenController.LoadSceneThroughLoadingScreen("Game");
     }
 
     private void RestartGame()
@@ -169,6 +188,7 @@ public sealed class MetaGameSceneController : MonoBehaviour
         if (!MetaGameSave.TrySpendLife())
             return;
 
+        RefreshDynamicText();
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
@@ -186,14 +206,7 @@ public sealed class MetaGameSceneController : MonoBehaviour
             pair.Value.SetActive(pair.Key == panelName || (string.IsNullOrEmpty(panelName) && pair.Value.activeSelf));
 
         SetShowcaseActive(panelName == "Shop");
-
-        targetBackgroundColor = panelName switch
-        {
-            "Leaderboards" => leaderboardColor,
-            "StarterPack" => starterPackColor,
-            "Shop" => shopColor,
-            _ => menuColor
-        };
+        targetBackgroundColor = GetPanelBackgroundColor(panelName);
 
         RefreshAll();
         RefreshBackgroundTarget();
@@ -221,6 +234,14 @@ public sealed class MetaGameSceneController : MonoBehaviour
             || button.name.Contains("BuyText", StringComparison.OrdinalIgnoreCase)
             || path.Contains("RealMoney", StringComparison.OrdinalIgnoreCase)
             || path.Contains("StarterPack", StringComparison.OrdinalIgnoreCase);
+
+        if (TryGetSkinCategoryAndId(path, out string ownedCategory, out string ownedId)
+            && MetaGameSave.IsSkinOwned(ownedCategory, ownedId))
+        {
+            MetaGameSave.SetSelectedSkin(ownedCategory, ownedId);
+            RefreshAll();
+            return;
+        }
 
         if (realMoney)
         {
@@ -266,17 +287,21 @@ public sealed class MetaGameSceneController : MonoBehaviour
     private void GrantShopItem(Button button)
     {
         string path = GetPath(button.transform);
+        string powerUpTag = DetectPowerUpTag(path);
 
-        if (path.Contains("Power", StringComparison.OrdinalIgnoreCase) || path.Contains("fire", StringComparison.OrdinalIgnoreCase))
+        if (IsLifePurchase(path))
         {
-            MetaGameSave.AddPowerUps(1);
+            MetaGameSave.Lives += 1;
             return;
         }
 
-        string category = DetectSkinCategory(path);
-        string id = DetectSkinId(path);
+        if (!string.IsNullOrEmpty(powerUpTag))
+        {
+            MetaGameSave.AddPowerUp(powerUpTag, 1);
+            return;
+        }
 
-        if (!string.IsNullOrEmpty(category))
+        if (TryGetSkinCategoryAndId(path, out string category, out string id))
         {
             MetaGameSave.OwnSkin(category, id);
             MetaGameSave.SetSelectedSkin(category, id);
@@ -286,10 +311,8 @@ public sealed class MetaGameSceneController : MonoBehaviour
     private void SelectSkin(Button button)
     {
         string path = GetPath(button.transform);
-        string category = DetectSkinCategory(path);
-        string id = DetectSkinId(path);
 
-        if (string.IsNullOrEmpty(category))
+        if (!TryGetSkinCategoryAndId(path, out string category, out string id))
             return;
 
         if (MetaGameSave.IsSkinOwned(category, id))
@@ -302,6 +325,7 @@ public sealed class MetaGameSceneController : MonoBehaviour
     {
         RefreshDynamicText();
         RefreshButtons();
+        RefreshBuyButtonVisibility();
         RefreshSettingsButtons();
         RefreshTabButtons();
         RefreshSelectedImages();
@@ -311,14 +335,14 @@ public sealed class MetaGameSceneController : MonoBehaviour
 
     private void RefreshDynamicText()
     {
-        MetaGameSave.RefillLives();
+        int lives = MetaGameSave.Lives;
 
         foreach (TMP_Text text in FindObjectsByType<TMP_Text>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
             string path = GetPath(text.transform);
 
-            if (text.name == "Lives")
-                text.text = $"{MetaGameSave.Lives}/3";
+            if (IsLivesCounterText(text, path))
+                text.text = FormatLivesText(text, lives);
             else if (text.name == "TimerText")
                 RefreshTimer(text, path);
             else if (path.Contains("HardCurrencyContainer", StringComparison.OrdinalIgnoreCase))
@@ -403,13 +427,11 @@ public sealed class MetaGameSceneController : MonoBehaviour
         if (button == null)
             return;
 
-        Image[] images = button.GetComponentsInChildren<Image>(true);
+        string disabledImageName = name == "MusicButton" ? "MusicOffImage" : "SoundOffImage";
+        Transform disabledImage = FindChild(button.transform, disabledImageName);
 
-        if (images.Length >= 2)
-        {
-            images[0].gameObject.SetActive(enabled);
-            images[1].gameObject.SetActive(!enabled);
-        }
+        if (disabledImage != null)
+            disabledImage.gameObject.SetActive(!enabled);
     }
 
     private void RefreshTabButtons()
@@ -438,10 +460,27 @@ public sealed class MetaGameSceneController : MonoBehaviour
             if (selected.name != "SelectedImage")
                 continue;
 
-            string path = GetPath(selected.transform.parent);
-            string category = DetectSkinCategory(path);
-            string id = DetectSkinId(path);
-            selected.SetActive(!string.IsNullOrEmpty(category) && MetaGameSave.GetSelectedSkin(category) == id);
+            string path = GetPath(selected.transform);
+            bool selectedSkin = TryGetSkinCategoryAndId(path, out string category, out string id)
+                && MetaGameSave.GetSelectedSkin(category) == id;
+
+            selected.SetActive(selectedSkin);
+        }
+    }
+
+    private void RefreshBuyButtonVisibility()
+    {
+        foreach (GameObject buyButtons in FindSceneObjects())
+        {
+            if (buyButtons.name != "BuyButtons")
+                continue;
+
+            string path = GetPath(buyButtons.transform);
+
+            if (!TryGetSkinCategoryAndId(path, out string category, out string id))
+                continue;
+
+            buyButtons.SetActive(!MetaGameSave.IsSkinOwned(category, id));
         }
     }
 
@@ -482,6 +521,21 @@ public sealed class MetaGameSceneController : MonoBehaviour
             child.gameObject.SetActive(IsShowcaseMatch(child.name, targetName));
     }
 
+    private void HandleBuyElementImage(Button button)
+    {
+        ShowShowcaseForButton(button);
+
+        string path = GetPath(button.transform);
+
+        if (TryGetSkinCategoryAndId(path, out string category, out string id)
+            && MetaGameSave.IsSkinOwned(category, id))
+        {
+            MetaGameSave.SetSelectedSkin(category, id);
+            RefreshSelectedImages();
+            RefreshBuyButtonVisibility();
+        }
+    }
+
     private Transform GetShowcaseContainer()
     {
         GameObject showcase = FindSceneObject("Showcase");
@@ -493,17 +547,17 @@ public sealed class MetaGameSceneController : MonoBehaviour
         if (!IsMenuScene())
             return;
 
-        if (backgroundImage == null)
-            backgroundImage = FindBackgroundImage();
+        if (backgroundGraphic == null)
+            backgroundGraphic = FindBackgroundGraphic();
 
         if (panels.TryGetValue("Leaderboards", out GameObject leaderboard) && leaderboard.activeInHierarchy)
-            targetBackgroundColor = leaderboardColor;
+            targetBackgroundColor = GetPanelBackgroundColor("Leaderboards");
         else if (panels.TryGetValue("StarterPack", out GameObject starterPack) && starterPack.activeInHierarchy)
-            targetBackgroundColor = starterPackColor;
+            targetBackgroundColor = GetPanelBackgroundColor("StarterPack");
         else if (panels.TryGetValue("Shop", out GameObject shop) && shop.activeInHierarchy)
-            targetBackgroundColor = shopColor;
+            targetBackgroundColor = GetPanelBackgroundColor("Shop");
         else
-            targetBackgroundColor = menuColor;
+            targetBackgroundColor = GetPanelBackgroundColor(null);
     }
 
     private void SetShopTabPanels(string tab)
@@ -580,15 +634,60 @@ public sealed class MetaGameSceneController : MonoBehaviour
         return remaining > TimeSpan.Zero ? remaining : duration;
     }
 
-    private static Image FindBackgroundImage()
+    private void ResolveBackgroundSettings()
     {
-        foreach (Image image in FindObjectsByType<Image>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        if (backgroundSettings == null)
+            backgroundSettings = Resources.Load<MetaGameMenuBackgroundSettings>(MetaGameMenuBackgroundSettings.ResourceName);
+    }
+
+    private Color GetPanelBackgroundColor(string panelName)
+    {
+        ResolveBackgroundSettings();
+
+        if (backgroundSettings != null)
+            return backgroundSettings.GetColor(panelName);
+
+        return panelName switch
         {
-            if (image.name == "BackgroundImage" && GetPath(image.transform).Contains("BackgroundCanvas", StringComparison.OrdinalIgnoreCase))
+            "Leaderboards" => FallbackLeaderboardColor,
+            "StarterPack" => FallbackStarterPackColor,
+            "Shop" => FallbackShopColor,
+            _ => FallbackDefaultColor
+        };
+    }
+
+    private float GetBackgroundLerpSpeed()
+    {
+        ResolveBackgroundSettings();
+        return backgroundSettings != null ? backgroundSettings.LerpSpeed : FallbackBackgroundLerpSpeed;
+    }
+
+    private static Graphic FindBackgroundGraphic()
+    {
+        foreach (RawImage image in FindObjectsByType<RawImage>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (IsBackgroundGraphic(image))
                 return image;
         }
 
+        foreach (Image image in FindObjectsByType<Image>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (IsBackgroundGraphic(image))
+                return image;
+        }
+
+        Graphic rawImage = FindNamed<RawImage>("BackgroundImage");
+
+        if (rawImage != null)
+            return rawImage;
+
         return FindNamed<Image>("BackgroundImage");
+    }
+
+    private static bool IsBackgroundGraphic(Graphic graphic)
+    {
+        return graphic.name == "BackgroundImage"
+            && GetPath(graphic.transform).Contains("BackgroundCanvas", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsSoftCurrencyBuyButton(Button button)
@@ -604,74 +703,36 @@ public sealed class MetaGameSceneController : MonoBehaviour
             && !path.Contains("StarterPack", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsLivesCounterText(TMP_Text text, string path)
+    {
+        return text.name == "Lives"
+            || text.name == "CurrentLivesCount"
+            || (text.name == "CountText" && path.Contains("HeartCurrencyContainer", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string FormatLivesText(TMP_Text text, int lives)
+    {
+        return text.name == "CurrentLivesCount"
+            ? lives.ToString()
+            : $"{lives}/3";
+    }
+
     private static string DetectShowcaseName(string path)
     {
-        string[] knownNames =
-        {
-            "BluePoolStick", "GreenPoolStick", "PinkPoolStick", "PurplePoolStick", "RedPoolStick", "YellowPoolStick", "DefaultPoolStick",
-            "BoardBlue", "BoardPurple", "BoardRed", "BoardDefault",
-            "PoolBalls", "BallsDefault", "BallsSkin1", "BallsSkin2", "BallsSkin3", "BallsSkin4", "BallsSkin5",
-            "Fire", "Earth", "Water", "Wind"
-        };
-
-        foreach (string knownName in knownNames)
-        {
-            if (path.Contains(knownName, StringComparison.OrdinalIgnoreCase))
-                return knownName;
-        }
-
-        string lower = path.ToLowerInvariant();
-
-        if (lower.Contains("poolstick_blue") || (lower.Contains("poolstick") && lower.Contains("blue")))
-            return "BluePoolStick";
-        if (lower.Contains("poolstick_green") || (lower.Contains("poolstick") && lower.Contains("green")))
-            return "GreenPoolStick";
-        if (lower.Contains("poolstick_pink") || (lower.Contains("poolstick") && lower.Contains("pink")))
-            return "PinkPoolStick";
-        if (lower.Contains("poolstick_purple") || (lower.Contains("poolstick") && lower.Contains("purple")))
-            return "PurplePoolStick";
-        if (lower.Contains("poolstick_red") || (lower.Contains("poolstick") && lower.Contains("red")))
-            return "RedPoolStick";
-        if (lower.Contains("poolstick_yellow") || (lower.Contains("poolstick") && lower.Contains("yellow")))
-            return "YellowPoolStick";
-        if (lower.Contains("poolstick_default") || (lower.Contains("poolstick") && lower.Contains("default")))
-            return "DefaultPoolStick";
-        if (lower.Contains("board_blue") || (lower.Contains("board") && lower.Contains("blue")))
-            return "BoardBlue";
-        if (lower.Contains("board_purple") || (lower.Contains("board") && lower.Contains("purple")))
-            return "BoardPurple";
-        if (lower.Contains("board_red") || (lower.Contains("board") && lower.Contains("red")))
-            return "BoardRed";
-        if (lower.Contains("board_default") || (lower.Contains("board") && lower.Contains("default")))
-            return "BoardDefault";
-        if (lower.Contains("balls_skin1"))
-            return "BallsSkin1";
-        if (lower.Contains("balls_skin2"))
-            return "BallsSkin2";
-        if (lower.Contains("balls_skin3"))
-            return "BallsSkin3";
-        if (lower.Contains("balls_skin4"))
-            return "BallsSkin4";
-        if (lower.Contains("balls_skin5"))
-            return "BallsSkin5";
-        if (lower.Contains("balls_default") || lower.Contains("poolballs"))
-            return "PoolBalls";
-        if (lower.Contains("fire"))
-            return "Fire";
-        if (lower.Contains("earth"))
-            return "Earth";
-        if (lower.Contains("water"))
-            return "Water";
-        if (lower.Contains("wind") || lower.Contains("air"))
-            return "Wind";
-
-        return string.Empty;
+        return TryGetShowcaseName(path, out string showcaseName) ? showcaseName : string.Empty;
     }
 
     private static bool IsShowcaseMatch(string childName, string targetName)
     {
         string child = NormalizeShowcaseName(childName);
         string target = NormalizeShowcaseName(targetName);
+
+        if (target.Equals("Default", StringComparison.OrdinalIgnoreCase)
+            || target.StartsWith("Skin", StringComparison.OrdinalIgnoreCase))
+        {
+            return child.Equals(target, StringComparison.OrdinalIgnoreCase);
+        }
+
         return child.Equals(target, StringComparison.OrdinalIgnoreCase)
             || child.Contains(target, StringComparison.OrdinalIgnoreCase);
     }
@@ -710,34 +771,136 @@ public sealed class MetaGameSceneController : MonoBehaviour
 
     private static string DetectSkinCategory(string path)
     {
-        if (path.Contains("PoolStick", StringComparison.OrdinalIgnoreCase))
-            return "poolstick";
-
-        if (path.Contains("Board", StringComparison.OrdinalIgnoreCase))
-            return "board";
-
-        if (path.Contains("Ball", StringComparison.OrdinalIgnoreCase))
-            return "balls";
-
-        return string.Empty;
+        return TryGetSkinCategoryAndId(path, out string category, out _) ? category : string.Empty;
     }
 
     private static string DetectSkinId(string path)
     {
-        string lower = path.ToLowerInvariant();
+        return TryGetSkinCategoryAndId(path, out _, out string id) ? id : "default";
+    }
 
-        if (lower.Contains("default"))
-            return "default";
+    private static bool TryGetShowcaseName(string path, out string showcaseName)
+    {
+        showcaseName = string.Empty;
+        string category = GetShopCategory(path);
+        string suffix = GetBuyElementSuffix(path);
 
-        string[] names = { "red", "blue", "green", "pink", "purple", "yellow", "skin1", "skin2", "skin3", "skin4", "skin5" };
+        if (string.IsNullOrEmpty(category) || string.IsNullOrEmpty(suffix))
+            return false;
 
-        foreach (string name in names)
+        showcaseName = category switch
         {
-            if (lower.Contains(name.ToLowerInvariant()))
-                return name.ToLowerInvariant();
+            "poolstick" => suffix.Equals("Default", StringComparison.OrdinalIgnoreCase) ? "DefaultPoolStick" : suffix + "PoolStick",
+            "board" => suffix.ToLowerInvariant() switch
+            {
+                "default" => "BoardDefault",
+                "blue" => "BoardBlue",
+                "green" or "purple" => "BoardPurple",
+                "pink" or "red" => "BoardRed",
+                _ => string.Empty
+            },
+            "balls" => suffix,
+            "powerup" => suffix.ToLowerInvariant() switch
+            {
+                "fire" => "FireBall",
+                "wind" => "WindBall",
+                "water" => "WaterBall",
+                "earth" => "EarthBall",
+                _ => string.Empty
+            },
+            _ => string.Empty
+        };
+
+        return !string.IsNullOrEmpty(showcaseName);
+    }
+
+    private static bool TryGetSkinCategoryAndId(string path, out string category, out string id)
+    {
+        category = GetShopCategory(path);
+        id = string.Empty;
+
+        if (category != "poolstick" && category != "board" && category != "balls")
+            return false;
+
+        string suffix = GetBuyElementSuffix(path);
+
+        if (string.IsNullOrEmpty(suffix))
+            return false;
+
+        id = category switch
+        {
+            "poolstick" => suffix.ToLowerInvariant() switch
+            {
+                "default" => "default",
+                "blue" => "blue",
+                "green" => "green",
+                "pink" => "pink",
+                "purple" => "purple",
+                "red" => "red",
+                "yellow" => "yellow",
+                _ => string.Empty
+            },
+            "board" => suffix.ToLowerInvariant() switch
+            {
+                "default" => "default",
+                "blue" => "blue",
+                "green" or "purple" => "purple",
+                "pink" or "red" => "red",
+                _ => string.Empty
+            },
+            "balls" => suffix.ToLowerInvariant() switch
+            {
+                "default" => "default",
+                "skin1" => "skin1",
+                "skin2" => "skin2",
+                "skin3" => "skin3",
+                "skin4" => "skin4",
+                "skin5" => "skin5",
+                _ => string.Empty
+            },
+            _ => string.Empty
+        };
+
+        return !string.IsNullOrEmpty(id);
+    }
+
+    private static string GetShopCategory(string path)
+    {
+        if (path.Contains("PoolSticks", StringComparison.OrdinalIgnoreCase))
+            return "poolstick";
+
+        if (path.Contains("Boards", StringComparison.OrdinalIgnoreCase))
+            return "board";
+
+        if (path.Contains("Balls", StringComparison.OrdinalIgnoreCase))
+            return "balls";
+
+        if (path.Contains("Powerups", StringComparison.OrdinalIgnoreCase))
+            return "powerup";
+
+        return string.Empty;
+    }
+
+    private static string GetBuyElementSuffix(string path)
+    {
+        string elementName = GetBuyElementName(path);
+
+        return elementName.StartsWith("BuyElement", StringComparison.OrdinalIgnoreCase)
+            ? elementName["BuyElement".Length..]
+            : string.Empty;
+    }
+
+    private static string GetBuyElementName(string path)
+    {
+        string[] parts = path.Split('/');
+
+        foreach (string part in parts)
+        {
+            if (part.StartsWith("BuyElement", StringComparison.OrdinalIgnoreCase))
+                return part;
         }
 
-        return "default";
+        return string.Empty;
     }
 
     private static string DetectPowerUpTag(string path)
@@ -754,6 +917,13 @@ public sealed class MetaGameSceneController : MonoBehaviour
             return "wind";
 
         return string.Empty;
+    }
+
+    private static bool IsLifePurchase(string path)
+    {
+        return path.Contains("BuyElementHeart", StringComparison.OrdinalIgnoreCase)
+            || path.Contains("/Lives/", StringComparison.OrdinalIgnoreCase)
+            || path.Contains("Heart", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool HasChild(Transform root, string childName)

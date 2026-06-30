@@ -11,6 +11,8 @@ using UnityEditor;
 
 public class GameScoreManager : MonoBehaviour
 {
+    private const string MoneySpriteName = "MoneySprite";
+
     [SerializeField] private TMP_Text scoreText;
     [SerializeField] private IslandManager islandManager;
     [SerializeField] private GameObject moneyPopUpCanvasPrefab;
@@ -83,7 +85,11 @@ public class GameScoreManager : MonoBehaviour
     private void RefreshText()
     {
         if (scoreText != null)
-            scoreText.text = $"Score\n{score}\nDestructions\n{destructions}";
+        {
+            string scoreLabel = MetaGameLocalization.TranslateForFont(scoreText, "Score");
+            string destructionsLabel = MetaGameLocalization.TranslateForFont(scoreText, "Destructions");
+            scoreText.text = $"{scoreLabel}\n{score}\n{destructionsLabel}\n{destructions}";
+        }
     }
 
     private TMP_Text FindTextByName(string objectName)
@@ -125,7 +131,12 @@ public class GameScoreManager : MonoBehaviour
         }
 
         foreach (Image image in instance.GetComponentsInChildren<Image>(true))
+        {
+            if (image.name == MoneySpriteName)
+                continue;
+
             image.color = popColor;
+        }
 
         instance.SetActive(true);
 

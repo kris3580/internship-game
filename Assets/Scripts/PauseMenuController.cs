@@ -54,6 +54,9 @@ public sealed class PauseMenuController : MonoBehaviour
 
     public void RestartGame()
     {
+        if (!MetaGameSave.TrySpendLife())
+            return;
+
         Time.timeScale = 1f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
@@ -102,8 +105,8 @@ public sealed class PauseMenuController : MonoBehaviour
         musicButton ??= FindButton("MusicButton");
         soundButton ??= FindButton("SoundButton");
 
-        musicDisabledImage = FindChildImage(musicButton);
-        soundDisabledImage = FindChildImage(soundButton);
+        musicDisabledImage = FindChildImage(musicButton, "MusicOffImage");
+        soundDisabledImage = FindChildImage(soundButton, "SoundOffImage");
     }
 
     private void AddListeners()
@@ -149,14 +152,14 @@ public sealed class PauseMenuController : MonoBehaviour
         return found != null ? found.GetComponent<Button>() : null;
     }
 
-    private static Image FindChildImage(Button button)
+    private static Image FindChildImage(Button button, string childName)
     {
         if (button == null)
             return null;
 
         foreach (Image image in button.GetComponentsInChildren<Image>(true))
         {
-            if (image.gameObject != button.gameObject)
+            if (image.gameObject != button.gameObject && image.name == childName)
                 return image;
         }
 

@@ -1,11 +1,14 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Zenject;
 
 public class LoadingScreenController : MonoBehaviour
 {
     private const string HasOpenedGameKey = "HasOpenedGameBefore";
+    private const string LoadingSceneName = "Loading";
+    private const string TargetSceneOverrideKey = "LoadingTargetScene";
 
     [SerializeField] private string targetSceneName = "Game";
     [SerializeField] private string firstLaunchSceneName = "Game";
@@ -15,6 +18,16 @@ public class LoadingScreenController : MonoBehaviour
 
     private float displayedProgress;
     [InjectOptional] private ISceneLoader sceneLoader;
+
+    public static void LoadSceneThroughLoadingScreen(string targetSceneName)
+    {
+        if (string.IsNullOrWhiteSpace(targetSceneName))
+            return;
+
+        PlayerPrefs.SetString(TargetSceneOverrideKey, targetSceneName);
+        PlayerPrefs.Save();
+        SceneManager.LoadScene(LoadingSceneName);
+    }
 
     private void Awake()
     {
@@ -37,7 +50,7 @@ public class LoadingScreenController : MonoBehaviour
     {
         AsyncOperation loadOperation = sceneLoader != null
             ? sceneLoader.LoadSceneAsync(targetSceneName)
-            : UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(targetSceneName);
+            : SceneManager.LoadSceneAsync(targetSceneName);
 
         if (loadOperation == null)
         {
@@ -147,6 +160,15 @@ public class LoadingScreenController : MonoBehaviour
 
     private string GetTargetSceneName()
     {
+        string overrideScene = PlayerPrefs.GetString(TargetSceneOverrideKey, string.Empty);
+
+        if (!string.IsNullOrWhiteSpace(overrideScene))
+        {
+            PlayerPrefs.DeleteKey(TargetSceneOverrideKey);
+            PlayerPrefs.Save();
+            return overrideScene;
+        }
+
         if (!PlayerPrefs.HasKey(HasOpenedGameKey))
         {
             PlayerPrefs.SetInt(HasOpenedGameKey, 1);

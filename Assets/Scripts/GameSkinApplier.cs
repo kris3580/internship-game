@@ -1,12 +1,11 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
-
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 public sealed class GameSkinApplier : MonoBehaviour
 {
+    private readonly ISkinLoader skinLoader = new AddressableSkinLoader();
+
     private void Start()
     {
         Apply();
@@ -14,12 +13,12 @@ public sealed class GameSkinApplier : MonoBehaviour
 
     private void Apply()
     {
-        ApplyPrefabSkin("poolstick", "PoolStick/StartGameAnimation/PoolAnimator", "DefaultPoolStick", "Assets/Prefabs/PoolSticks");
-        ApplyPrefabSkin("board", "==GAME/Board", "BoardDefault", "Assets/Prefabs/Board");
+        ApplyPrefabSkin("poolstick", "PoolStick/StartGameAnimation/PoolAnimator", "DefaultPoolStick");
+        ApplyPrefabSkin("board", "==GAME/Board", "BoardDefault");
         ApplyExistingBallMaterials();
     }
 
-    private void ApplyPrefabSkin(string category, string targetPath, string defaultChildName, string folder)
+    private void ApplyPrefabSkin(string category, string targetPath, string defaultChildName)
     {
         string selected = MetaGameSave.GetSelectedSkin(category);
 
@@ -31,25 +30,26 @@ public sealed class GameSkinApplier : MonoBehaviour
         if (target == null)
             return;
 
-        for (int i = target.childCount - 1; i >= 0; i--)
-        {
-            Transform child = target.GetChild(i);
+        string address = GetSkinAddress(category, selected);
 
-            if (child.name.Contains(defaultChildName, StringComparison.OrdinalIgnoreCase)
-                || child.name.Contains(selected, StringComparison.OrdinalIgnoreCase))
-            {
-                Destroy(child.gameObject);
-            }
-        }
-
-        GameObject prefab = LoadSkinPrefab(folder, selected);
-
-        if (prefab == null)
+        if (string.IsNullOrWhiteSpace(address))
             return;
 
-        GameObject instance = Instantiate(prefab, target);
-        instance.transform.localPosition = Vector3.zero;
-        instance.transform.localRotation = Quaternion.identity;
+        List<GameObject> oldSkinObjects = GetExistingSkinObjects(target, defaultChildName, selected, address);
+
+        skinLoader.LoadSkin(address, target, instance =>
+        {
+            if (instance == null)
+                return;
+
+            instance.name = address;
+
+            foreach (GameObject oldSkinObject in oldSkinObjects)
+            {
+                if (oldSkinObject != null)
+                    Destroy(oldSkinObject);
+            }
+        });
     }
 
     private void ApplyExistingBallMaterials()
@@ -70,11 +70,11 @@ public sealed class GameSkinApplier : MonoBehaviour
         foreach (GameObject root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
         {
             Transform current = root.transform;
-            int startIndex = root.name.Equals(parts[0], StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+            int startIndex = NamesMatch(root.name, parts[0]) ? 1 : 0;
 
             if (startIndex == 0)
             {
-                current = FindChildContains(root.transform, parts[0]);
+                current = FindChildByLooseName(root.transform, parts[0]);
 
                 if (current == null)
                     continue;
@@ -86,7 +86,7 @@ public sealed class GameSkinApplier : MonoBehaviour
 
             for (int i = startIndex; i < parts.Length; i++)
             {
-                current = FindChildContains(current, parts[i]);
+                current = FindChildByLooseName(current, parts[i]);
 
                 if (current == null)
                 {
@@ -102,36 +102,106 @@ public sealed class GameSkinApplier : MonoBehaviour
         return null;
     }
 
-    private static Transform FindChildContains(Transform parent, string name)
+    private static Transform FindChildByLooseName(Transform parent, string name)
     {
-        string cleanName = name.Replace("=", string.Empty).Trim();
+        Transform exactDirectChild = FindChild(parent, name, directOnly: true, exact: true);
+
+        if (exactDirectChild != null)
+            return exactDirectChild;
+
+        Transform exactDescendant = FindChild(parent, name, directOnly: false, exact: true);
+
+        if (exactDescendant != null)
+            return exactDescendant;
+
+        Transform looseDirectChild = FindChild(parent, name, directOnly: true, exact: false);
+
+        if (looseDirectChild != null)
+            return looseDirectChild;
+
+        return FindChild(parent, name, directOnly: false, exact: false);
+    }
+
+    private static Transform FindChild(Transform parent, string name, bool directOnly, bool exact)
+    {
+        string cleanName = NormalizeName(name);
 
         foreach (Transform child in parent.GetComponentsInChildren<Transform>(true))
         {
             if (child == parent)
                 continue;
 
-            if (child.name.Contains(cleanName, StringComparison.OrdinalIgnoreCase))
+            if (directOnly && child.parent != parent)
+                continue;
+
+            string cleanChildName = NormalizeName(child.name);
+            bool matched = exact
+                ? cleanChildName.Equals(cleanName, StringComparison.OrdinalIgnoreCase)
+                : cleanChildName.Contains(cleanName, StringComparison.OrdinalIgnoreCase);
+
+            if (matched)
                 return child;
         }
 
         return null;
     }
 
-    private static GameObject LoadSkinPrefab(string folder, string selected)
+    private static List<GameObject> GetExistingSkinObjects(Transform target, string defaultChildName, string selected, string address)
     {
-#if UNITY_EDITOR
-        string[] guids = AssetDatabase.FindAssets("t:Prefab", new[] { folder });
+        List<GameObject> skinObjects = new();
 
-        foreach (string guid in guids)
+        for (int i = 0; i < target.childCount; i++)
         {
-            string path = AssetDatabase.GUIDToAssetPath(guid);
-            string fileName = System.IO.Path.GetFileNameWithoutExtension(path);
+            Transform child = target.GetChild(i);
 
-            if (fileName.Contains(selected, StringComparison.OrdinalIgnoreCase))
-                return AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (child.name.Contains(defaultChildName, StringComparison.OrdinalIgnoreCase)
+                || child.name.Contains(selected, StringComparison.OrdinalIgnoreCase)
+                || child.name.Contains(address, StringComparison.OrdinalIgnoreCase))
+            {
+                skinObjects.Add(child.gameObject);
+            }
         }
-#endif
-        return null;
+
+        return skinObjects;
+    }
+
+    private static string GetSkinAddress(string category, string selected)
+    {
+        string id = selected.ToLowerInvariant();
+
+        return category switch
+        {
+            "poolstick" => ToAddressPrefix(id) + "PoolStick",
+            "board" => id switch
+            {
+                "blue" => "BoardBlue",
+                "green" or "purple" => "BoardPurple",
+                "pink" or "red" => "BoardRed",
+                _ => string.Empty
+            },
+            _ => string.Empty
+        };
+    }
+
+    private static string ToAddressPrefix(string value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : char.ToUpperInvariant(value[0]) + value[1..];
+    }
+
+    private static bool NamesMatch(string candidate, string target)
+    {
+        return NormalizeName(candidate).Equals(NormalizeName(target), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeName(string value)
+    {
+        return value.Replace("=", string.Empty)
+            .Replace(" ", string.Empty)
+            .Replace("_", string.Empty)
+            .Replace("-", string.Empty)
+            .Replace("(Clone)", string.Empty)
+            .Trim();
     }
 }
