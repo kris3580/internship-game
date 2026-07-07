@@ -474,8 +474,8 @@ MonoBehaviour:
   moneyPopUpParent: {fileID: 0}
   moneyPopUpLifetime: 1.2
   moneyPopUpAnchoredX: 0.5
-  popBallParticlePrefab: {fileID: 0}
-  popColorPalette: {fileID: 0}
+  popBallParticlePrefab: {fileID: 6158790193263086567, guid: 9b89995e482d22e42bd6df43a6be9f4d, type: 3}
+  popColorPalette: {fileID: 11400000, guid: 94ed06c6b5c917e46bab963280085644, type: 2}
   popParticleLifetime: 4
 --- !u!1 &42806184
 GameObject:
@@ -4048,7 +4048,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 0
+  m_PresetInfoIsWorld: 1
 --- !u!223 &792725433
 Canvas:
   m_ObjectHideFlags: 0
@@ -4058,7 +4058,7 @@ Canvas:
   m_GameObject: {fileID: 792725430}
   m_Enabled: 1
   serializedVersion: 3
-  m_RenderMode: 1
+  m_RenderMode: 2
   m_Camera: {fileID: 180179140}
   m_PlaneDistance: 100
   m_PixelPerfect: 0
@@ -4079,9 +4079,9 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 792725430}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0, y: 0, z: 0}
+  m_LocalRotation: {x: 0.021347255, y: -0.70678455, z: 0.021347255, w: 0.70678455}
+  m_LocalPosition: {x: 0, y: 0, z: -0.11001192}
+  m_LocalScale: {x: 0.5920644, y: 0.5920644, z: 0.5920644}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 909887218}
@@ -4089,9 +4089,9 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
-  m_Pivot: {x: 0, y: 0}
+  m_AnchoredPosition: {x: -85.47774, y: -0.57516384}
+  m_SizeDelta: {x: 800, y: 800}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &813068508
 GameObject:
   m_ObjectHideFlags: 0
@@ -4718,16 +4718,16 @@ RectTransform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 909887217}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 44.86997}
+  m_LocalPosition: {x: 0, y: 0, z: 44.86999}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 792725434}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -0.0000034084846, y: -0.00002428703}
-  m_SizeDelta: {x: 3687.2, y: 3419.42}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &909887219
 MonoBehaviour:
@@ -4768,8 +4768,8 @@ MonoBehaviour:
     serializedVersion: 2
     x: 1
     y: 1
-    width: 1.3
-    height: 1.3
+    width: 1
+    height: 1
 --- !u!222 &909887221
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -5642,7 +5642,7 @@ Transform:
   m_GameObject: {fileID: 1178063014}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0.18}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -6170,7 +6170,7 @@ MonoBehaviour:
   startAnimator: {fileID: 635967703}
   hitAnimationStateName: Hit
   startAnimationStateName: PoolStickStartGame
-  startAnimationLockSeconds: 6.5
+  startAnimationLockSeconds: 4.9
   dropDelay: 0.15
   dropImpulse: {x: 0, y: -10, z: 0}
   dropImpulseMode: 1
@@ -6178,7 +6178,7 @@ MonoBehaviour:
   audioManager: {fileID: 1757287843}
   minZ: -3.9
   maxZ: 3.67
-  placementSensitivity: 1.4
+  placementSensitivity: 2.5
   nextHitDelay: 0.1
   spawnOnStart: 1
   blockPlacementOverUi: 1
@@ -6516,7 +6516,7 @@ MonoBehaviour:
   maxProgressBarWidth: 260
   balls:
   - tag: 2
-    fatePoints: 2
+    fatePoints: 50
     inRotation: 1
     element: {fileID: 0}
     progressBar: {fileID: 0}
@@ -6526,7 +6526,7 @@ MonoBehaviour:
     closestIslandNeed: 0
     effectiveWeight: 0
   - tag: 3
-    fatePoints: 3
+    fatePoints: 50
     inRotation: 0
     element: {fileID: 0}
     progressBar: {fileID: 0}
@@ -6536,7 +6536,7 @@ MonoBehaviour:
     closestIslandNeed: 0
     effectiveWeight: 0
   - tag: 4
-    fatePoints: 4
+    fatePoints: 50
     inRotation: 1
     element: {fileID: 0}
     progressBar: {fileID: 0}
@@ -6546,7 +6546,7 @@ MonoBehaviour:
     closestIslandNeed: 0
     effectiveWeight: 0
   - tag: 5
-    fatePoints: 5
+    fatePoints: 50
     inRotation: 1
     element: {fileID: 0}
     progressBar: {fileID: 0}
@@ -6556,7 +6556,7 @@ MonoBehaviour:
     closestIslandNeed: 0
     effectiveWeight: 0
   - tag: 6
-    fatePoints: 6
+    fatePoints: 50
     inRotation: 0
     element: {fileID: 0}
     progressBar: {fileID: 0}
@@ -6566,7 +6566,7 @@ MonoBehaviour:
     closestIslandNeed: 0
     effectiveWeight: 0
   - tag: 7
-    fatePoints: 7
+    fatePoints: 50
     inRotation: 1
     element: {fileID: 0}
     progressBar: {fileID: 0}
@@ -6576,7 +6576,7 @@ MonoBehaviour:
     closestIslandNeed: 0
     effectiveWeight: 0
   - tag: 8
-    fatePoints: 8
+    fatePoints: 50
     inRotation: 0
     element: {fileID: 0}
     progressBar: {fileID: 0}
@@ -6586,10 +6586,11 @@ MonoBehaviour:
     closestIslandNeed: 0
     effectiveWeight: 0
   minimumFatePoints: 1
-  randomBallJoinDestructionCounts: 00000000000000000000000000000000070000001300000021000000
+  randomBallJoinDestructionCounts: 00000000000000000000000000000000020000000400000006000000
   useSubtleIslandBias: 1
   islandBiasNeedThreshold: 2
-  immediateIslandChance: 0.3
+  immediateIslandChance: 0.2
+  immediateIslandRepeatCooldownTurns: 3
   oneAwayBonusWeight: 0.75
   twoAwayBonusWeight: 0.35
   mostLikelyBallPreview: 
@@ -13959,7 +13960,7 @@ MonoBehaviour:
   waterPrefab: {fileID: 3614112810464961032, guid: c0c708234f96c86489b38069c6ea8cc1, type: 3}
   windPrefab: {fileID: 4329584378171603819, guid: 7404bcfdf0dba3b4d904b3e41229e943, type: 3}
   startingCount: 100
-  perGameUseLimit: 3
+  perGameUseLimit: 1
 --- !u!1 &1714645798
 GameObject:
   m_ObjectHideFlags: 0

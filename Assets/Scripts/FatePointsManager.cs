@@ -52,6 +52,7 @@ public sealed class FatePointsManager : MonoBehaviour
     [SerializeField] private bool useSubtleIslandBias = true;
     [SerializeField] private int islandBiasNeedThreshold = 2;
     [SerializeField, Range(0f, 1f)] private float immediateIslandChance = 0.18f;
+    [SerializeField] private int immediateIslandRepeatCooldownTurns = 3;
     [SerializeField] private float oneAwayBonusWeight = 0.75f;
     [SerializeField] private float twoAwayBonusWeight = 0.35f;
     [SerializeField] private string mostLikelyBallPreview;
@@ -77,6 +78,7 @@ public sealed class FatePointsManager : MonoBehaviour
     [SerializeField] private ComboBackgroundColorController backgroundColorController;
 
     private readonly Dictionary<string, FateBall> ballsByTag = new();
+    private readonly Dictionary<string, int> immediateIslandCooldowns = new();
     private GameScoreManager scoreManager;
     private IslandManager islandManager;
     private AudioSource feedbackAudioSource;
@@ -128,22 +130,19 @@ public sealed class FatePointsManager : MonoBehaviour
         string completingTag = TryPickImmediateIslandCompletion();
 
         if (!string.IsNullOrWhiteSpace(completingTag))
-        {
-            RefreshInspectorReport(completingTag);
-            RefreshUi();
-            return completingTag;
-        }
+            return FinishPick(completingTag, fromImmediateIslandCompletion: true);
 
         if (ShouldSpawnModifierBall())
         {
-            return UnityEngine.Random.value < 0.5f ? PlusTag : MinusTag;
+            string modifierTag = UnityEngine.Random.value < 0.5f ? PlusTag : MinusTag;
+            return FinishPick(modifierTag, fromImmediateIslandCompletion: false);
         }
 
         float totalWeight = 0f;
 
         foreach (FateBall ball in balls)
         {
-            if (!ball.inRotation)
+            if (!ball.inRotation || IsOnImmediateIslandCooldown(ball.tag))
                 continue;
 
             ball.effectiveWeight = GetEffectiveWeight(ball);
@@ -151,26 +150,22 @@ public sealed class FatePointsManager : MonoBehaviour
         }
 
         if (totalWeight <= 0f)
-            return "2";
+            return FinishPick(GetFallbackPickTag(), fromImmediateIslandCompletion: false);
 
         float roll = UnityEngine.Random.Range(0f, totalWeight);
 
         foreach (FateBall ball in balls)
         {
-            if (!ball.inRotation)
+            if (!ball.inRotation || IsOnImmediateIslandCooldown(ball.tag))
                 continue;
 
             roll -= ball.effectiveWeight;
 
             if (roll <= 0f)
-            {
-                RefreshInspectorReport(ball.tag);
-                RefreshUi();
-                return ball.tag;
-            }
+                return FinishPick(ball.tag, fromImmediateIslandCompletion: false);
         }
 
-        return "2";
+        return FinishPick(GetFallbackPickTag(), fromImmediateIslandCompletion: false);
     }
 
     public void PlaySpawnFeedback(string ballTag)
@@ -194,19 +189,30 @@ public sealed class FatePointsManager : MonoBehaviour
 
     public void AdjustFatePoints(string ballTag, int delta)
     {
+        TryAdjustFatePoints(ballTag, delta);
+    }
+
+    public bool TryAdjustFatePoints(string ballTag, int delta)
+    {
         if (string.IsNullOrWhiteSpace(ballTag))
-            return;
+            return false;
 
         RebuildLookup();
 
         if (!ballsByTag.TryGetValue(ballTag, out FateBall ball))
-            return;
+            return false;
 
-        ball.fatePoints = Mathf.Max(minimumFatePoints, ball.fatePoints + delta);
+        int adjustedFatePoints = Mathf.Max(minimumFatePoints, ball.fatePoints + delta);
+
+        if (adjustedFatePoints == ball.fatePoints)
+            return false;
+
+        ball.fatePoints = adjustedFatePoints;
         ball.inRotation = true;
         RefreshInspectorReport(ballTag);
         RefreshUi();
         Changed?.Invoke();
+        return true;
     }
 
     public bool IsInRotation(string ballTag)
@@ -397,13 +403,92 @@ public sealed class FatePointsManager : MonoBehaviour
 
         foreach (FateBall ball in balls)
         {
-            if (ball.inRotation && ball.closestIslandNeed == 1)
+            if (ball.inRotation && ball.closestIslandNeed == 1 && !IsOnImmediateIslandCooldown(ball.tag))
                 completingTags.Add(ball.tag);
         }
 
         return completingTags.Count > 0
             ? completingTags[UnityEngine.Random.Range(0, completingTags.Count)]
             : null;
+    }
+
+    private string FinishPick(string pickedTag, bool fromImmediateIslandCompletion)
+    {
+        if (fromImmediateIslandCompletion)
+        {
+            TickImmediateIslandCooldowns();
+            StartImmediateIslandCooldown(pickedTag);
+        }
+        else
+        {
+            TickImmediateIslandCooldowns();
+        }
+
+        RefreshInspectorReport(pickedTag);
+        RefreshUi();
+        return pickedTag;
+    }
+
+    private string GetFallbackPickTag()
+    {
+        foreach (FateBall ball in balls)
+        {
+            if (ball.inRotation && !IsOnImmediateIslandCooldown(ball.tag))
+                return ball.tag;
+        }
+
+        foreach (FateBall ball in balls)
+        {
+            if (ball.inRotation)
+                return ball.tag;
+        }
+
+        return "2";
+    }
+
+    private void StartImmediateIslandCooldown(string ballTag)
+    {
+        if (string.IsNullOrWhiteSpace(ballTag) || immediateIslandRepeatCooldownTurns <= 0)
+            return;
+
+        immediateIslandCooldowns[ballTag] = immediateIslandRepeatCooldownTurns;
+    }
+
+    private void TickImmediateIslandCooldowns()
+    {
+        if (immediateIslandCooldowns.Count == 0)
+            return;
+
+        List<string> expiredTags = new();
+        List<string> activeTags = new(immediateIslandCooldowns.Keys);
+
+        foreach (string tag in activeTags)
+        {
+            int turns = immediateIslandCooldowns[tag] - 1;
+
+            if (turns <= 0)
+                expiredTags.Add(tag);
+            else
+                immediateIslandCooldowns[tag] = turns;
+        }
+
+        foreach (string tag in expiredTags)
+            immediateIslandCooldowns.Remove(tag);
+    }
+
+    private bool IsOnImmediateIslandCooldown(string ballTag)
+    {
+        return !string.IsNullOrWhiteSpace(ballTag)
+            && immediateIslandCooldowns.TryGetValue(ballTag, out int turns)
+            && turns > 0;
+    }
+
+    private int GetImmediateIslandCooldownTurns(string ballTag)
+    {
+        return !string.IsNullOrWhiteSpace(ballTag)
+            && immediateIslandCooldowns.TryGetValue(ballTag, out int turns)
+            ? Mathf.Max(0, turns)
+            : 0;
     }
 
     private void ScheduleNextModifierBall()
@@ -521,13 +606,17 @@ public sealed class FatePointsManager : MonoBehaviour
     {
         likelihoodReport.Clear();
         FateBall best = null;
+        bool hasRotatingBall = false;
 
         foreach (FateBall ball in balls)
         {
             if (!ball.inRotation)
                 continue;
 
-            if (best == null || ball.effectiveWeight > best.effectiveWeight)
+            hasRotatingBall = true;
+            int cooldownTurns = GetImmediateIslandCooldownTurns(ball.tag);
+
+            if (cooldownTurns <= 0 && (best == null || ball.effectiveWeight > best.effectiveWeight))
                 best = ball;
 
             string needText = ball.closestIslandNeed == int.MaxValue
@@ -535,12 +624,15 @@ public sealed class FatePointsManager : MonoBehaviour
                 : ball.closestIslandNeed <= 0
                     ? "ready"
                     : $"{ball.closestIslandNeed} away";
-            likelihoodReport.Add($"Ball {ball.tag}: FP {ball.fatePoints}, effective {ball.effectiveWeight:0.##}, {needText}");
+            string cooldownText = cooldownTurns > 0 ? $", cooldown {cooldownTurns}" : string.Empty;
+            likelihoodReport.Add($"Ball {ball.tag}: FP {ball.fatePoints}, effective {ball.effectiveWeight:0.##}, {needText}{cooldownText}");
         }
 
         mostLikelyBallPreview = best != null
             ? $"Ball {best.tag} ({best.effectiveWeight:0.##} weight){(string.IsNullOrWhiteSpace(pickedTag) ? string.Empty : $"; picked {pickedTag}")}"
-            : "No balls in rotation";
+            : hasRotatingBall
+                ? "All rotating balls are on cooldown"
+                : "No balls in rotation";
     }
 
     private void ResolveReferences()
@@ -698,6 +790,7 @@ public sealed class FatePointsManager : MonoBehaviour
         modifierBallMinSentGap = Mathf.Max(1, modifierBallMinSentGap);
         modifierBallMaxSentGap = Mathf.Max(modifierBallMinSentGap, modifierBallMaxSentGap);
         islandBiasNeedThreshold = Mathf.Max(0, islandBiasNeedThreshold);
+        immediateIslandRepeatCooldownTurns = Mathf.Max(0, immediateIslandRepeatCooldownTurns);
         oneAwayBonusWeight = Mathf.Max(0f, oneAwayBonusWeight);
         twoAwayBonusWeight = Mathf.Max(0f, twoAwayBonusWeight);
         newBallSwooshDelay = Mathf.Max(0f, newBallSwooshDelay);
