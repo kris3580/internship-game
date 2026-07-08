@@ -1,14 +1,29 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using TMPro;
 using UnityEngine;
 using UnityEngine.TextCore.LowLevel;
 
 public static class MetaGameFontFallbacks
 {
+    private const int FontSamplingPointSize = 90;
+    private const int FontAtlasPadding = 9;
+    private const int FontAtlasSize = 2048;
+    private const int MaxFontCollectionFaces = 12;
+
     private static readonly string[] CandidateFamilies =
     {
+        "sans-serif",
+        "Droid Sans Fallback",
+        "Droid Sans",
+        "Roboto",
+        "Noto Sans",
+        "Noto Sans SC",
+        "Noto Sans TC",
+        "Noto Sans JP",
+        "Noto Sans KR",
         "Nirmala UI",
         "Arial Unicode MS",
         "Segoe UI Symbol",
@@ -46,28 +61,48 @@ public static class MetaGameFontFallbacks
 
     private static readonly Dictionary<string, string[]> LanguageFamilies = new()
     {
-        ["zh"] = new[] { "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "SimSun" },
-        ["hi"] = new[] { "Nirmala UI", "Mangal", "Noto Sans Devanagari" },
-        ["ar"] = new[] { "Nirmala UI", "Segoe UI", "Noto Sans Arabic", "Tahoma" },
-        ["ru"] = new[] { "Segoe UI", "Arial", "Noto Sans" },
-        ["ja"] = new[] { "Yu Gothic", "Meiryo", "Noto Sans CJK JP" },
-        ["th"] = new[] { "Leelawadee UI", "Nirmala UI", "Tahoma", "Noto Sans Thai" },
-        ["uk"] = new[] { "Segoe UI", "Arial", "Noto Sans" },
-        ["bn"] = new[] { "Nirmala UI", "Vrinda", "Noto Sans Bengali", "Noto Serif Bengali" },
-        ["ko"] = new[] { "Malgun Gothic", "Noto Sans CJK KR" }
+        ["zh"] = new[] { "Noto Sans CJK SC", "Noto Sans SC", "Droid Sans Fallback", "sans-serif", "Microsoft YaHei UI", "Microsoft YaHei", "SimSun" },
+        ["hi"] = new[] { "Noto Sans Devanagari", "Nirmala UI", "Mangal", "sans-serif" },
+        ["ar"] = new[] { "Noto Naskh Arabic", "Noto Sans Arabic", "Nirmala UI", "Segoe UI", "Tahoma", "sans-serif" },
+        ["ru"] = new[] { "Roboto", "Noto Sans", "Segoe UI", "Arial", "sans-serif" },
+        ["ja"] = new[] { "Noto Sans CJK JP", "Noto Sans JP", "Droid Sans Fallback", "Yu Gothic", "Meiryo", "sans-serif" },
+        ["th"] = new[] { "Noto Sans Thai", "Leelawadee UI", "Nirmala UI", "Tahoma", "sans-serif" },
+        ["uk"] = new[] { "Roboto", "Noto Sans", "Segoe UI", "Arial", "sans-serif" },
+        ["bn"] = new[] { "Noto Sans Bengali", "Noto Serif Bengali", "Nirmala UI", "Vrinda", "sans-serif" },
+        ["ko"] = new[] { "Noto Sans CJK KR", "Noto Sans KR", "Droid Sans Fallback", "Malgun Gothic", "sans-serif" },
+        ["vi"] = new[] { "Roboto", "Noto Sans", "Segoe UI", "Arial", "sans-serif" },
+        ["pl"] = new[] { "Roboto", "Noto Sans", "Segoe UI", "Arial", "sans-serif" },
+        ["tr"] = new[] { "Roboto", "Noto Sans", "Segoe UI", "Arial", "sans-serif" },
+        ["ro"] = new[] { "Roboto", "Noto Sans", "Segoe UI", "Arial", "sans-serif" },
+        ["hu"] = new[] { "Roboto", "Noto Sans", "Segoe UI", "Arial", "sans-serif" }
     };
 
     private static readonly Dictionary<string, string[]> LanguageFontFiles = new()
     {
-        ["zh"] = new[] { "msyh.ttc", "simsun.ttc" },
-        ["hi"] = new[] { "Nirmala.ttf", "mangal.ttf" },
-        ["ar"] = new[] { "DUBAI-REGULAR.TTF", "tahoma.ttf", "segoeui.ttf", "Nirmala.ttf" },
-        ["ru"] = new[] { "segoeui.ttf", "arial.ttf" },
-        ["ja"] = new[] { "YuGothR.ttc", "meiryo.ttc", "msgothic.ttc" },
-        ["th"] = new[] { "leelawui.ttf", "Nirmala.ttf", "tahoma.ttf" },
-        ["uk"] = new[] { "segoeui.ttf", "arial.ttf" },
-        ["bn"] = new[] { "Nirmala.ttf", "vrinda.ttf" },
-        ["ko"] = new[] { "malgun.ttf" }
+        ["zh"] = new[] { "NotoSansCJK-Regular.ttc", "NotoSansSC-Regular.otf", "NotoSansHans-Regular.otf", "DroidSansFallback.ttf", "msyh.ttc", "simsun.ttc" },
+        ["hi"] = new[] { "NotoSansDevanagari-Regular.ttf", "NotoSansDevanagariUI-Regular.ttf", "NotoSerifDevanagari-Regular.ttf", "DroidSansDevanagari-Regular.ttf", "Nirmala.ttf", "mangal.ttf" },
+        ["ar"] = new[] { "NotoNaskhArabic-Regular.ttf", "NotoSansArabic-Regular.ttf", "DroidNaskh-Regular-SystemUI.ttf", "DroidSansArabic.ttf", "DUBAI-REGULAR.TTF", "tahoma.ttf", "segoeui.ttf", "Nirmala.ttf" },
+        ["ru"] = new[] { "Roboto-Regular.ttf", "NotoSans-Regular.ttf", "DroidSans.ttf", "segoeui.ttf", "arial.ttf" },
+        ["ja"] = new[] { "NotoSansCJK-Regular.ttc", "NotoSansJP-Regular.otf", "NotoSansJpan-Regular.otf", "DroidSansJapanese.ttf", "DroidSansFallback.ttf", "YuGothR.ttc", "meiryo.ttc", "msgothic.ttc" },
+        ["vi"] = new[] { "Roboto-Regular.ttf", "NotoSans-Regular.ttf", "DroidSans.ttf", "segoeui.ttf", "arial.ttf" },
+        ["pl"] = new[] { "Roboto-Regular.ttf", "NotoSans-Regular.ttf", "DroidSans.ttf", "segoeui.ttf", "arial.ttf" },
+        ["th"] = new[] { "NotoSansThai-Regular.ttf", "NotoSansThaiUI-Regular.ttf", "DroidSansThai.ttf", "leelawui.ttf", "Nirmala.ttf", "tahoma.ttf" },
+        ["uk"] = new[] { "Roboto-Regular.ttf", "NotoSans-Regular.ttf", "DroidSans.ttf", "segoeui.ttf", "arial.ttf" },
+        ["tr"] = new[] { "Roboto-Regular.ttf", "NotoSans-Regular.ttf", "DroidSans.ttf", "segoeui.ttf", "arial.ttf" },
+        ["bn"] = new[] { "NotoSansBengali-Regular.ttf", "NotoSansBengaliUI-Regular.ttf", "NotoSerifBengali-Regular.ttf", "DroidSansBengali.ttf", "Nirmala.ttf", "vrinda.ttf" },
+        ["ko"] = new[] { "NotoSansCJK-Regular.ttc", "NotoSansKR-Regular.otf", "NotoSansKore-Regular.otf", "DroidSansFallback.ttf", "malgun.ttf" },
+        ["ro"] = new[] { "Roboto-Regular.ttf", "NotoSans-Regular.ttf", "DroidSans.ttf", "segoeui.ttf", "arial.ttf" },
+        ["hu"] = new[] { "Roboto-Regular.ttf", "NotoSans-Regular.ttf", "DroidSans.ttf", "segoeui.ttf", "arial.ttf" }
+    };
+
+    private static readonly string[] FontSearchFolders =
+    {
+        Environment.GetFolderPath(Environment.SpecialFolder.Fonts),
+        "/system/fonts",
+        "/system/font",
+        "/product/fonts",
+        "/system_ext/fonts",
+        "/vendor/fonts"
     };
 
     private static readonly string[] CandidateStyles =
@@ -103,7 +138,7 @@ public static class MetaGameFontFallbacks
         {
             try
             {
-                TMP_FontAsset fallback = TMP_FontAsset.CreateFontAsset(family, style);
+                TMP_FontAsset fallback = TMP_FontAsset.CreateFontAsset(family, style, FontSamplingPointSize);
 
                 if (fallback != null)
                     return fallback;
@@ -116,7 +151,7 @@ public static class MetaGameFontFallbacks
 
         try
         {
-            Font osFont = Font.CreateDynamicFontFromOSFont(family, 90);
+            Font osFont = Font.CreateDynamicFontFromOSFont(family, FontSamplingPointSize);
 
             if (osFont == null)
                 return null;
@@ -126,11 +161,11 @@ public static class MetaGameFontFallbacks
 
             return TMP_FontAsset.CreateFontAsset(
                 osFont,
-                90,
-                9,
+                FontSamplingPointSize,
+                FontAtlasPadding,
                 GlyphRenderMode.SDFAA,
-                2048,
-                2048,
+                FontAtlasSize,
+                FontAtlasSize,
                 AtlasPopulationMode.Dynamic,
                 true);
         }
@@ -202,7 +237,6 @@ public static class MetaGameFontFallbacks
         try
         {
             return font.material != null
-                && font.sourceFontFile != null
                 && font.atlasTextures != null
                 && font.atlasTextures.Length > 0
                 && font.atlasTextures[0] != null;
@@ -262,26 +296,30 @@ public static class MetaGameFontFallbacks
         if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(language) || language == "en")
             return preferredFont;
 
-        if (!LanguageFamilies.TryGetValue(language, out string[] families))
-            return CanRenderDirectly(preferredFont, value) ? preferredFont : null;
+        if (CanRenderDirectly(preferredFont, value))
+            return preferredFont;
 
-        if (LanguageFonts.TryGetValue(language, out TMP_FontAsset cachedFont) && IsRuntimeFallbackUsable(cachedFont))
+        if (!LanguageFamilies.TryGetValue(language, out string[] families))
+            return null;
+
+        if (LanguageFonts.TryGetValue(language, out TMP_FontAsset cachedFont)
+            && IsRuntimeFallbackUsable(cachedFont)
+            && CanRenderDirectly(cachedFont, value))
+        {
             return cachedFont;
+        }
 
         if (LanguageFontFiles.TryGetValue(language, out string[] fontFiles))
         {
             foreach (string fileName in fontFiles)
             {
-                TMP_FontAsset font = CreateFallbackFontAssetFromFile(fileName);
+                TMP_FontAsset font = CreateFallbackFontAssetFromFile(fileName, value);
 
-                if (!IsRuntimeFallbackUsable(font))
+                if (!TryPrepareFontForText(font, value))
                     continue;
 
                 font.name = "Language Font - " + language + " - " + Path.GetFileNameWithoutExtension(fileName);
-                font.hideFlags = HideFlags.HideAndDontSave | HideFlags.DontUnloadUnusedAsset;
-                RuntimeFallbacks.Add(font);
-                LanguageFonts[language] = font;
-                return font;
+                return RegisterLanguageFont(language, font);
             }
         }
 
@@ -289,48 +327,195 @@ public static class MetaGameFontFallbacks
         {
             TMP_FontAsset font = CreateFallbackFontAsset(family);
 
-            if (!IsRuntimeFallbackUsable(font))
+            if (!TryPrepareFontForText(font, value))
                 continue;
 
             font.name = "Language Font - " + language + " - " + family;
-            font.hideFlags = HideFlags.HideAndDontSave | HideFlags.DontUnloadUnusedAsset;
-            RuntimeFallbacks.Add(font);
-            LanguageFonts[language] = font;
-            return font;
+            return RegisterLanguageFont(language, font);
         }
 
         return null;
     }
 
-    private static TMP_FontAsset CreateFallbackFontAssetFromFile(string fileName)
+    private static TMP_FontAsset RegisterLanguageFont(string language, TMP_FontAsset font)
     {
-        string fontPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), fileName);
+        font.hideFlags = HideFlags.HideAndDontSave | HideFlags.DontUnloadUnusedAsset;
+        RuntimeFallbacks.Add(font);
+        AddGlobalFallback(font);
+        LanguageFonts[language] = font;
+        return font;
+    }
+
+    private static void AddGlobalFallback(TMP_FontAsset font)
+    {
+        if (font == null)
+            return;
+
+        List<TMP_FontAsset> fallbacks = TMP_Settings.fallbackFontAssets;
+
+        if (fallbacks == null)
+        {
+            fallbacks = new List<TMP_FontAsset>();
+            TMP_Settings.fallbackFontAssets = fallbacks;
+        }
+
+        if (!fallbacks.Contains(font))
+            fallbacks.Add(font);
+    }
+
+    private static TMP_FontAsset CreateFallbackFontAssetFromFile(string fileName, string value)
+    {
+        string fontPath = ResolveFontPath(fileName);
 
         if (!File.Exists(fontPath))
             return null;
 
+        foreach (int faceIndex in GetFaceIndicesToTry(fontPath))
+        {
+            TMP_FontAsset font = CreateFallbackFontAssetFromPath(fontPath, faceIndex);
+
+            if (TryPrepareFontForText(font, value))
+                return font;
+        }
+
+        return null;
+    }
+
+    private static TMP_FontAsset CreateFallbackFontAssetFromPath(string fontPath, int faceIndex)
+    {
         try
         {
-            Font font = new(fontPath)
-            {
-                hideFlags = HideFlags.HideAndDontSave | HideFlags.DontUnloadUnusedAsset
-            };
-            RuntimeUnityFonts.Add(font);
-
             return TMP_FontAsset.CreateFontAsset(
-                font,
-                90,
-                9,
+                fontPath,
+                faceIndex,
+                FontSamplingPointSize,
+                FontAtlasPadding,
                 GlyphRenderMode.SDFAA,
-                2048,
-                2048,
-                AtlasPopulationMode.Dynamic,
-                true);
+                FontAtlasSize,
+                FontAtlasSize);
         }
         catch (Exception)
         {
             return null;
         }
+    }
+
+    private static IEnumerable<int> GetFaceIndicesToTry(string fontPath)
+    {
+        yield return 0;
+
+        string extension = Path.GetExtension(fontPath);
+
+        if (!string.Equals(extension, ".ttc", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(extension, ".otc", StringComparison.OrdinalIgnoreCase))
+        {
+            yield break;
+        }
+
+        for (int i = 1; i < MaxFontCollectionFaces; i++)
+            yield return i;
+    }
+
+    private static string ResolveFontPath(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+            return null;
+
+        if (Path.IsPathRooted(fileName) && File.Exists(fileName))
+            return fileName;
+
+        foreach (string folder in FontSearchFolders)
+        {
+            if (string.IsNullOrWhiteSpace(folder))
+                continue;
+
+            string path = Path.Combine(folder, fileName);
+
+            if (File.Exists(path))
+                return path;
+
+            string matchedPath = FindFontFileIgnoringCase(folder, fileName);
+
+            if (!string.IsNullOrEmpty(matchedPath))
+                return matchedPath;
+        }
+
+        return null;
+    }
+
+    private static string FindFontFileIgnoringCase(string folder, string fileName)
+    {
+        try
+        {
+            if (!Directory.Exists(folder))
+                return null;
+
+            foreach (string path in Directory.GetFiles(folder))
+            {
+                if (string.Equals(Path.GetFileName(path), fileName, StringComparison.OrdinalIgnoreCase))
+                    return path;
+            }
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+
+        return null;
+    }
+
+    private static bool TryPrepareFontForText(TMP_FontAsset font, string value)
+    {
+        if (!IsRuntimeFallbackUsable(font))
+            return false;
+
+        string characters = GetUniqueRenderableCharacters(value);
+
+        if (string.IsNullOrEmpty(characters))
+            return true;
+
+        if (font.atlasPopulationMode == AtlasPopulationMode.Dynamic
+            || font.atlasPopulationMode == AtlasPopulationMode.DynamicOS)
+        {
+            try
+            {
+                font.TryAddCharacters(characters, out _);
+            }
+            catch (MissingReferenceException)
+            {
+                return false;
+            }
+            catch (NullReferenceException)
+            {
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        return CanRenderDirectly(font, value);
+    }
+
+    private static string GetUniqueRenderableCharacters(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+
+        StringBuilder builder = new();
+        HashSet<char> added = new();
+
+        foreach (char character in value)
+        {
+            if (char.IsControl(character) || char.IsWhiteSpace(character))
+                continue;
+
+            if (added.Add(character))
+                builder.Append(character);
+        }
+
+        return builder.ToString();
     }
 
     private static bool CanRenderDirectly(TMP_FontAsset font, string value)
@@ -418,6 +603,20 @@ public static class MetaGameFontFallbacks
 
         if (!IsDynamicFontUsable(font))
             return false;
+
+        try
+        {
+            if (font.HasCharacter(character, false, true))
+                return true;
+        }
+        catch (MissingReferenceException)
+        {
+            return false;
+        }
+        catch (NullReferenceException)
+        {
+            return false;
+        }
 
         try
         {

@@ -16,12 +16,23 @@ public sealed class MetaGameBootstrap : MonoBehaviour
     private static MetaGameBootstrap EnsureInstance()
     {
         if (instance != null)
+        {
+            if (instance.GetComponent<FpsTextController>() == null)
+                instance.gameObject.AddComponent<FpsTextController>();
+
+            if (FindFirstObjectByType<FPSUnlock>() == null)
+                instance.gameObject.AddComponent<FPSUnlock>();
+
             return instance;
+        }
 
         GameObject root = new("__MetaGameBootstrap");
         DontDestroyOnLoad(root);
         instance = root.AddComponent<MetaGameBootstrap>();
         root.AddComponent<MetaGameButtonSfx>();
+        root.AddComponent<FpsTextController>();
+        if (FindFirstObjectByType<FPSUnlock>() == null)
+            root.AddComponent<FPSUnlock>();
         return instance;
     }
 

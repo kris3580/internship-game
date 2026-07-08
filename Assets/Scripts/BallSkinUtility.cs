@@ -1,4 +1,7 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -6,6 +9,8 @@ using UnityEditor;
 
 public static class BallSkinUtility
 {
+    private static readonly Dictionary<string, Material> LoadedMaterials = new();
+
     public static string CurrentBallSkinId => MetaGameSave.GetSelectedSkin("balls");
 
     public static void ApplySelectedBallMaterial(GameObject ball)
@@ -57,7 +62,16 @@ public static class BallSkinUtility
 #if UNITY_EDITOR
         return AssetDatabase.LoadAssetAtPath<Material>($"Assets/Models/Balls/{materialName}.mat");
 #else
-        return Resources.Load<Material>(materialName);
+        if (LoadedMaterials.TryGetValue(materialName, out Material cachedMaterial))
+            return cachedMaterial;
+
+        AsyncOperationHandle<Material> handle = Addressables.LoadAssetAsync<Material>(materialName);
+        Material material = handle.WaitForCompletion();
+
+        if (material != null)
+            LoadedMaterials[materialName] = material;
+
+        return material;
 #endif
     }
 }

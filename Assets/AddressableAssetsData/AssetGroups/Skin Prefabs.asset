@@ -70,7 +70,39 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a0cf90e219a9e0f40ad4e34945d55aea
+    m_Address: Pool Ball Default
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ec9bb2c4a45418046b8f50e513a4f83e
+    m_Address: Pool Ball Skin1
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 030a8c999190d8845acb23aedccf6749
+    m_Address: Pool Ball Skin2
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 259d43d96195d254894a8d34e5c7cb66
+    m_Address: Pool Ball Skin3
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 01d554a70ce976a4483e1d2bd9bec046
+    m_Address: Pool Ball Skin4
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5bf95b1c30a522b4691a44c85e9bc066
+    m_Address: Pool Ball Skin5
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: e9fbcfba6690f394f9dbc88a2b77f1f0, type: 2}
   m_SchemaSet:
-    m_Schemas: []
+    m_Schemas:
+    - {fileID: 11400000, guid: 7e6b2ff7d1e84a349840f7ff5bd87671, type: 2}
+    - {fileID: 11400000, guid: 0f8a2a31b2d34885a8ff6a319d64b6a2, type: 2}
