@@ -1129,7 +1129,7 @@ MonoBehaviour:
   - {fileID: 8300000, guid: 5868427b559148f4e9b984ce476ab749, type: 3}
   playOnAwake: 1
   shuffle: 0
-  volume: 0.05
+  volume: 0.02
   endTolerance: 0.15
   preloadNextClip: 1
   preloadEntirePlaylist: 1

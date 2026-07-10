@@ -9,7 +9,7 @@ public class MusicPlaylistPlayer : MonoBehaviour
     [SerializeField] private AudioClip[] playlist;
     [SerializeField] private bool playOnAwake = true;
     [SerializeField] private bool shuffle;
-    [SerializeField] private float volume = 0.45f;
+    private float volume = 0.02f;
     [SerializeField] private float endTolerance = 0.15f;
     [SerializeField] private bool preloadNextClip = true;
     [SerializeField] private bool preloadEntirePlaylist = true;
