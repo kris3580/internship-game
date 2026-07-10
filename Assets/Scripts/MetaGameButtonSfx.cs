@@ -2,12 +2,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
-
 public sealed class MetaGameButtonSfx : MonoBehaviour
 {
+    private const string TapClipResourcePath = "Audio/Game/Common/ui_tap";
+    private const string BuyClipResourcePath = "Audio/Game/Common/buy";
+
     private readonly HashSet<Button> hookedButtons = new();
     private AudioSource source;
     private AudioClip tapClip;
@@ -55,9 +54,13 @@ public sealed class MetaGameButtonSfx : MonoBehaviour
 
     private void LoadClips()
     {
-#if UNITY_EDITOR
-        tapClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Game/Common/ui_tap.wav");
-        buyClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Game/Common/buy.wav");
-#endif
+        tapClip = Resources.Load<AudioClip>(TapClipResourcePath);
+        buyClip = Resources.Load<AudioClip>(BuyClipResourcePath);
+
+        if (tapClip == null)
+            Debug.LogError($"Missing UI tap clip at Resources/{TapClipResourcePath}.", this);
+
+        if (buyClip == null)
+            Debug.LogError($"Missing UI buy clip at Resources/{BuyClipResourcePath}.", this);
     }
 }
